@@ -681,6 +681,27 @@
 
 /* Remove auto-balance UI */
 .autoBalanceRow,[data-feature="autoBalance"],#autoBalanceWrap{display:none !important;}
+
+
+/* --- Mobile rooms list: prevent nested-scroll cutoff (iOS) --- */
+@media (max-width: 820px){
+  .editGrid{ gap:14px; }
+  .roomList{ max-height:none !important; }
+  .roomListScroll{
+    max-height:none !important;
+    overflow: visible !important; /* let page scroll instead of inner panel */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Keep inner scrolling for larger screens */
+@media (min-width: 821px){
+  .roomListScroll{
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
 </style>
 
 <style>
