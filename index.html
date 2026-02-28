@@ -1101,191 +1101,1650 @@ RAD8A/cpgApJYrk889iTimMJBnAzjuBjk+pJ/QVYZXLDYQSTkjrn0Ptn/ABqJ2dCXY88n5hkd+g7/AOf
 <script>
 (function(){
   // --- Compatibility helpers (no optional chaining) ---
-  
+  function safeParseJSON(s){ try { return JSON.parse(s); } catch(e){ return null; } }
+  function get(id){ return document.getElementById(id); }
 
-    // Starting pointer: next CNA after absent, but within the kept list
-    var startLabel = (absentIdx + 1) + 1; // human number for next CNA
-    var startPos = 0;
-    var centers = null;
-    var currentLoads = [];
-    for (var cl=0; cl<kept.length; cl++) currentLoads.push(kept[cl].patients || 0);
-    ensureCnaAdjust();
-    var adjKept = [];
-    for (var ax=0; ax<labels.length; ax++){
-      var orig = labels[ax] - 1;
-      adjKept.push((typeof cnaAdjust[orig] === "number") ? cnaAdjust[orig] : 0);
-    }
-    var targetLoads = computeFinalTargetsFromCurrent(currentLoads, give.length, adjKept);
-    for (var k=0;k<labels.length;k++){
-      if (labels[k] === startLabel){ startPos = k; break; }
-    }
-
-    for (var b=0;b<give.length;b++){
-      var bed = give[b];
-
-      // Keep-close + fairness: prefer nearest rooms, but prevent one CNA from absorbing most of the load.
-      // We apply a soft cap based on the expected balanced workload.
-      // Fair + Close reassign:
-      // 1) We compute balanced FINAL target loads first.
-      // 2) While redistributing, we assign each bed to an eligible CNA:
-      //    - Strict: cannot exceed target
-      //    - Soft: may exceed target by +1 only if no one under target is close enough
-      // 3) Among eligible CNAs, prefer nearest rooms; then apply chosen fairness mode.
-      var targetIdx = 0;
-
-      if (keepClose && !centers) centers = computeCenters(kept);
-
-      // Determine eligibility
-      var allowExtra = (fairnessMode === "soft") ? 1 : 0;
-
-      // First pass: CNAs still under target
-      var eligible = [];
-      for (var ei=0; ei<kept.length; ei++){
-        if ((kept[ei].patients || 0) < targetLoads[ei]) eligible.push(ei);
-      }
-
-      // Soft pass: if nobody is under target (should be rare), allow +1
-      if (!eligible.length && allowExtra){
-        for (var ej=0; ej<kept.length; ej++){
-          if ((kept[ej].patients || 0) < (targetLoads[ej] + 1)) eligible.push(ej);
-        }
-      }
-
-      // Absolute fallback: everyone (should never happen)
-      if (!eligible.length){
-        for (var ek=0; ek<kept.length; ek++) eligible.push(ek);
-      }
-
-      function pickByRotation(candidates){
-        for (var step=0; step<kept.length; step++){
-          var j = (startPos + step) % kept.length;
-          if (candidates.indexOf(j) !== -1){
-            targetIdx = j;
-            startPos = (j+1) % kept.length;
-            return;
-          }
-        }
-        targetIdx = candidates[0] || 0;
-        startPos = (targetIdx + 1) % kept.length;
-      }
-
-      // Prefer nearest room among eligible
-      if (keepClose){
-        var rnum = bedRoomNum(bed);
-        var bestDist = null;
-        for (var ed=0; ed<eligible.length; ed++){
-          var ii = eligible[ed];
-          var c = centers[ii] || 0;
-          var d = Math.abs(rnum - c);
-          if (bestDist === null || d < bestDist) bestDist = d;
-        }
-        var near = [];
-        for (var ed2=0; ed2<eligible.length; ed2++){
-          var ii2 = eligible[ed2];
-          var c2 = centers[ii2] || 0;
-          var d2 = Math.abs(rnum - c2);
-          if (d2 === bestDist) near.push(ii2);
-        }
-
-        if (mode === "least"){
-          // among nearest, pick lowest current workload; tie by rotation
-          var bestLoad = null;
-          for (var nl=0; nl<near.length; nl++){
-            var idxN = near[nl];
-            var load = kept[idxN].patients || 0;
-            if (bestLoad === null || load < bestLoad) bestLoad = load;
-          }
-          var bestSet = [];
-          for (var nl2=0; nl2<near.length; nl2++){
-            var idxN2 = near[nl2];
-            if ((kept[idxN2].patients || 0) === bestLoad) bestSet.push(idxN2);
-          }
-          pickByRotation(bestSet);
-        } else {
-          // order: rotation among nearest
-          pickByRotation(near);
-        }
-      } else {
-        // No keepClose: standard fairness
-        if (mode === "least"){
-          var best = null;
-          for (var t=0;t<eligible.length;t++){
-            var candIdx = eligible[t];
-            var cand = kept[candIdx].patients || 0;
-            if (best === null || cand < best) best = cand;
-          }
-          var bestSet2 = [];
-          for (var t2=0;t2<eligible.length;t2++){
-            var candIdx2 = eligible[t2];
-            if ((kept[candIdx2].patients || 0) === best) bestSet2.push(candIdx2);
-          }
-          pickByRotation(bestSet2);
-        } else {
-          pickByRotation(eligible);
-        }
-      }
-kept[targetIdx].beds.push(bed);
-      kept[targetIdx].beds.sort(bedSort);
-      kept[targetIdx].patients = kept[targetIdx].beds.length;
-      if (keepClose && centers){ centers[targetIdx] = computeCenters([kept[targetIdx]])[0]; }
-    }
-
-    var note = "CNA " + (absentIdx+1) + " left early — redistributed " + give.length + " patient(s) across remaining CNAs (" +
-      (mode === "least" ? "least workload" : "in order") + (keepClose ? ", nearest rooms" : "") + ", " + (fairnessMode === "soft" ? "soft balance" : "strict balance") + ").";
-    return { assignments: kept, labels: labels, note: note };
+  function escapeHtml(s){
+    s = String(s == null ? "" : s);
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   }
 
-
-  // Light load UI events
-  if (get("lightToggle")){
-    get("lightToggle").addEventListener("click", function(){
-      var panel = get("lightPanel");
-      if (!panel) return;
-      var open = panel.getAttribute("data-open") === "1";
-      panel.setAttribute("data-open", open ? "0" : "1");
-      saveState();
-      renderLightLoad();
-    });
-  }
-  if (get("lightAdd")){
-    get("lightAdd").addEventListener("click", function(){
-      ensureLightRules();
-      var n = parseInt(get("cnaCount").value || "1", 10);
-      // pick first CNA not already in rules if possible
-      var used = {};
-      for (var i=0;i<lightRules.length;i++) used[lightRules[i].cna] = true;
-      var pick = 1;
-      for (var k=1;k<=n;k++){ if (!used[k]){ pick = k; break; } }
-      lightRules.push({ cna: pick, adj: -1 });
-      // auto-expand
-      var panel = get("lightPanel");
-      if (panel) panel.setAttribute("data-open","1");
-      saveState();
-      renderLightLoad();
-    });
-  }
-  if (get("lightClear")){
-    get("lightClear").addEventListener("click", function(){
-      lightRules = [];
-      ensureCnaAdjust();
-      for (var i=0;i<cnaAdjust.length;i++) cnaAdjust[i] = 0;
-      saveState();
-      renderLightLoad();
-      toast("Light load cleared");
-    });
+  function showError(msg){
+    var box = get("errBox");
+    if (!box) return;
+    box.textContent = msg;
+    box.classList.add("show");
   }
 
-get("generate").addEventListener("click", function(){ doGenerate(false); });
-  get("shuffleAgain").addEventListener("click", function(){ doGenerate(true); });
-  get("printBtn").addEventListener("click", function(){
-    updatePrintHeaderMeta(); syncOnePerPage(); window.print();
+  window.addEventListener("error", function(ev){
+    try{
+      showError("App error: " + (ev && ev.message ? ev.message : "Unknown error") + " (rooms may not load).");
+    }catch(e){}
   });
 
-  get("copyAllBtn").addEventListener("click", copyAll);
-  get("copyAllWordBtn").addEventListener("click", copyAllForWord);
-  if(get("toggleAllDetailsBtn")) get("toggleAllDetailsBtn").addEventListener("click", toggleAllDetails);
-  get("copyObsBtn").addEventListener("click", copyObsOnly);
-  get("copyHospBtn").addEventListener("click", copyHospOnly);
+  // Rooms (16abc corrected)
+  var THREE_BED_ROOMS = [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,29];
+  var TWO_BED_ROOMS   = [4,28,30];
+
+  var STATUS = ["Occupied", "On Observation", "Pending Admission", "Out to Hospital", "Empty"];
+  var OBS_GROUPS = ["Unassigned","Observer 1","Observer 2","Observer 3","Observer 4","Observer 5","Observer 6","Observer 7","Observer 8","Observer 9","Observer 10"];
+  var STORAGE_KEY = "cc_cna_roomlist_editor_v2";
+
+  var saved = null;
+  try{ saved = safeParseJSON(localStorage.getItem(STORAGE_KEY)); }catch(e){ saved = null; }
+
+  function toast(msg){
+    var t = get("toast");
+    if (!t) return;
+    t.textContent = msg || "Done";
+    t.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ t.classList.remove("show"); }, 1100);
+  }
+
+  function openCopyModal(text){
+    var back = get("copyModal");
+    var ta = get("modalText");
+    if (!back || !ta) return;
+    ta.value = text || "";
+    back.classList.add("show");
+    setTimeout(function(){ ta.focus(); ta.select(); }, 50);
+  }
+  function closeCopyModal(){
+    var back = get("copyModal");
+    if (back) back.classList.remove("show");
+  }
+  get("closeModalBtn").addEventListener("click", closeCopyModal);
+  get("closeModalBtn2").addEventListener("click", closeCopyModal);
+  get("selectAllBtn").addEventListener("click", function(){
+    var ta = get("modalText");
+    ta.focus(); ta.select(); toast("Selected");
+  });
+  get("copyModal").addEventListener("click", function(e){
+    if (e.target && e.target.id === "copyModal") closeCopyModal();
+  });
+
+  function setSaveStatus(text){
+    var el = get("saveStatus");
+    if (!el) return;
+    el.textContent = text;
+    clearTimeout(setSaveStatus._t);
+    setSaveStatus._t = setTimeout(function(){ el.textContent = "Ready"; }, 1100);
+  }
+
+  function buildAllBeds(){
+    var beds = [];
+    for (var i=0;i<THREE_BED_ROOMS.length;i++){
+      var r = THREE_BED_ROOMS[i];
+      beds.push(String(r)+"A", String(r)+"B", String(r)+"C");
+    }
+    for (var j=0;j<TWO_BED_ROOMS.length;j++){
+      var r2 = TWO_BED_ROOMS[j];
+      beds.push(String(r2)+"A", String(r2)+"B");
+    }
+    beds.sort(function(a,b){
+      var ra = parseInt(a,10), rb = parseInt(b,10);
+      if (ra !== rb) return ra - rb;
+      var la = a.slice(-1), lb = b.slice(-1);
+      return la.localeCompare(lb);
+    });
+    return beds;
+  }
+  var ALL_BEDS = buildAllBeds();
+
+  function roomsAll(){
+    var set = {};
+    for (var i=0;i<THREE_BED_ROOMS.length;i++) set[THREE_BED_ROOMS[i]] = true;
+    for (var j=0;j<TWO_BED_ROOMS.length;j++) set[TWO_BED_ROOMS[j]] = true;
+    var out = [];
+    for (var k in set) out.push(parseInt(k,10));
+    out.sort(function(a,b){ return a-b; });
+    return out;
+  }
+  var ALL_ROOMS = roomsAll();
+
+  function bedsForRoom(r){
+    r = parseInt(r,10);
+    if (THREE_BED_ROOMS.indexOf(r) >= 0) return [String(r)+"A", String(r)+"B", String(r)+"C"];
+    if (TWO_BED_ROOMS.indexOf(r) >= 0) return [String(r)+"A", String(r)+"B"];
+    return [];
+  }
+  function roomNum(bed){ return parseInt(bed,10); }
+
+  // Sort beds like 4A, 4B, 4C, 5A... (works everywhere, including iPhone)
+  function bedSort(a,b){
+    var ra = roomNum(a);
+    var rb = roomNum(b);
+    if (ra !== rb) return ra - rb;
+    // Compare suffix letters (A/B/C) if present
+    var sa = (a+"").replace(/\d+/g,"");
+    var sb = (b+"").replace(/\d+/g,"");
+    if (sa < sb) return -1;
+    if (sa > sb) return 1;
+    return 0;
+  }
+
+
+  // State
+  var bedStatus = {};
+  var bedObsGroup = {};
+  var randomizeTotals = true;
+  var cnaNames = [];
+  var cnaAdjust = [];
+  var lightRules = [];
+
+  // Undo/Redo history (beds + observation groups only)
+  var history = [];
+  var historyIndex = -1;
+  var HISTORY_MAX = 80;
+
+  function snapshotState(){
+    var bs = {};
+    var og = {};
+    for (var i=0;i<ALL_BEDS.length;i++){
+      var b = ALL_BEDS[i];
+      bs[b] = bedStatus[b];
+      og[b] = bedObsGroup[b];
+    }
+    return { bedStatus: bs, bedObsGroup: og, selectedRoom: selectedRoom };
+  }
+
+  function sameSnapshot(a,b){
+    if (!a || !b) return false;
+    if (a.selectedRoom !== b.selectedRoom) return false;
+    for (var i=0;i<ALL_BEDS.length;i++){
+      var k = ALL_BEDS[i];
+      if (a.bedStatus[k] !== b.bedStatus[k]) return false;
+      if (a.bedObsGroup[k] !== b.bedObsGroup[k]) return false;
+    }
+    return true;
+  }
+
+  function updateUndoRedoButtons(){
+    var u = get("undoBtn");
+    var r = get("redoBtn");
+    if (u) u.disabled = !(historyIndex > 0);
+    if (r) r.disabled = !(historyIndex >= 0 && historyIndex < history.length - 1);
+  }
+
+  function pushHistory(){
+    var snap = snapshotState();
+    if (historyIndex >= 0 && sameSnapshot(history[historyIndex], snap)) return;
+
+    history = history.slice(0, historyIndex + 1);
+    history.push(snap);
+
+    if (history.length > HISTORY_MAX){
+      history.shift();
+    }
+    historyIndex = history.length - 1;
+    updateUndoRedoButtons();
+  }
+
+  function applySnapshot(snap){
+    if (!snap) return;
+    for (var i=0;i<ALL_BEDS.length;i++){
+      var b = ALL_BEDS[i];
+      bedStatus[b] = snap.bedStatus[b];
+      bedObsGroup[b] = snap.bedObsGroup[b];
+    }
+    selectedRoom = snap.selectedRoom;
+    renderRoomList();
+    renderRoomEditor();
+    updateChips();
+    try{ if (saved && saved.lightPanelOpen) get("lightPanel").setAttribute("data-open","1"); }catch(e){}
+    renderLightLoad();
+    updateUndoRedoButtons();
+    saveState();
+    if (lastAssignments) renderObsSummary();
+  }
+
+  function undo(){
+    if (historyIndex > 0){
+      historyIndex--;
+      applySnapshot(history[historyIndex]);
+      updateUndoRedoButtons();
+      toast("Undone");
+    }
+  }
+
+  function redo(){
+    if (historyIndex < history.length - 1){
+      historyIndex++;
+      applySnapshot(history[historyIndex]);
+      updateUndoRedoButtons();
+      toast("Redone");
+    }
+  }
+
+  if (saved && typeof saved.randomizeTotals === "boolean") randomizeTotals = saved.randomizeTotals;
+
+  for (var i=0;i<ALL_BEDS.length;i++){
+    var b = ALL_BEDS[i];
+    var st = saved && saved.bedStatus ? saved.bedStatus[b] : null;
+    bedStatus[b] = (STATUS.indexOf(st) >= 0) ? st : "Occupied";
+
+    var og = saved && saved.bedObsGroup ? saved.bedObsGroup[b] : null;
+    bedObsGroup[b] = (OBS_GROUPS.indexOf(og) >= 0) ? og : "Unassigned";
+  }
+
+    if (saved && Array.isArray(saved.cnaCardOpen)) cnaCardOpen = saved.cnaCardOpen.slice();
+var selectedRoom = ALL_ROOMS[0];
+  if (saved && typeof saved.selectedRoom === "number" && ALL_ROOMS.indexOf(saved.selectedRoom) >= 0){
+    selectedRoom = saved.selectedRoom;
+  }
+
+  
+  if (saved && Array.isArray(saved.cnaAdjust)) cnaAdjust = saved.cnaAdjust.slice();
+  if (saved && Array.isArray(saved.lightRules)) lightRules = saved.lightRules.slice();
+function saveState(){
+    try{
+      var state = {
+        bedStatus: bedStatus,
+        bedObsGroup: bedObsGroup,
+        cnaCount: (get("cnaCount") && get("cnaCount").value) ? get("cnaCount").value : "7",
+        randomizeTotals: randomizeTotals,
+        filterMode: (get("filterMode") && get("filterMode").value) ? get("filterMode").value : "all",
+        printDate: (get("printDate") && get("printDate").value) ? get("printDate").value : "",
+        printShift: (get("printShift") && get("printShift").value) ? get("printShift").value : "Day",
+        onePerPage: !!(get("onePerPage") && get("onePerPage").checked),
+        copyIncludeObs: !!(get("copyIncludeObs") && get("copyIncludeObs").checked),
+        copyPageBreaks: !!(get("copyPageBreaks") && get("copyPageBreaks").checked),
+        printRoomList: !!(get("printRoomList") && get("printRoomList").checked),
+        printDetails: !!(get("printDetails") && get("printDetails").checked),
+        detailsDefault: !!(get("detailsDefault") && get("detailsDefault").checked),
+        selectedRoom: selectedRoom,
+        lightRules: lightRules
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setSaveStatus("Saved");
+    }catch(e){
+      setSaveStatus("No storage");
+    }
+  }
+
+  function getBedsByStatus(statuses){
+    var out = [];
+    for (var i=0;i<ALL_BEDS.length;i++){
+      var b = ALL_BEDS[i];
+      if (statuses.indexOf(bedStatus[b]) >= 0) out.push(b);
+    }
+    return out;
+  }
+
+  function getCounts(){
+    var occupied = getBedsByStatus(["Occupied"]);
+    var obs = getBedsByStatus(["On Observation"]);
+    var adm = getBedsByStatus(["Pending Admission"]);
+    var hosp = getBedsByStatus(["Out to Hospital"]);
+    var empty = getBedsByStatus(["Empty"]);
+    var censusBeds = occupied.length + obs.length;
+    var workloadBeds = occupied.length + adm.length;
+
+    var roomSet = {};
+    var active = getBedsByStatus(["Occupied","On Observation","Pending Admission"]);
+    for (var i=0;i<active.length;i++) roomSet[roomNum(active[i])] = true;
+    var roomCount = 0;
+    for (var k in roomSet) roomCount++;
+
+    return { occupied: occupied, obs: obs, adm: adm, hosp: hosp, empty: empty, censusBeds: censusBeds, workloadBeds: workloadBeds, rooms: roomCount };
+  }
+
+  function updateChips(){
+    var c = getCounts();
+    get("chipCensus").textContent = c.censusBeds;
+    get("chipWorkload").textContent = c.workloadBeds;
+    get("chipObs").textContent = c.obs.length;
+    get("chipAdm").textContent = c.adm.length;
+    get("chipRooms").textContent = c.rooms;
+    if(get("chipOHP")) get("chipOHP").textContent = c.hosp.length;
+    if(get("chipEMP")) get("chipEMP").textContent = c.empty.length;
+    if(get("chipLicensed")) get("chipLicensed").textContent = LICENSED_BEDS;
+
+    get("shuffleAgain").disabled = true;
+    get("printBtn").disabled = true;
+    get("loadStats").textContent = "-";
+
+    get("copyAllBtn").disabled = true;
+    get("copyObsBtn").disabled = true;
+    get("copyHospBtn").disabled = true;
+    get("copyAllWordBtn").disabled = true;
+    if(get("toggleAllDetailsBtn")) get("toggleAllDetailsBtn").disabled = true;
+    renderHospList();
+  }
+
+  function roomBadgesFor(r){
+    var beds = bedsForRoom(r);
+    var counts = { "Occupied":0, "On Observation":0, "Pending Admission":0, "Out to Hospital":0, "Empty":0 };
+    for (var i=0;i<beds.length;i++){
+      var st = bedStatus[beds[i]];
+      if (counts[st] === undefined) counts[st] = 0;
+      counts[st] += 1;
+    }
+    var out = [];
+    if (counts["Occupied"]) out.push({cls:"occ", text:"OCC "+counts["Occupied"]});
+    if (counts["On Observation"]) out.push({cls:"obs", text:"OBS "+counts["On Observation"]});
+    if (counts["Pending Admission"]) out.push({cls:"adm", text:"ADM "+counts["Pending Admission"]});
+    if (counts["Out to Hospital"]) out.push({cls:"hosp", text:"OHP "+counts["Out to Hospital"]});
+    if (counts["Empty"]) out.push({cls:"empty", text:"EMP "+counts["Empty"]});
+    if (out.length === 0) out.push({cls:"", text:"—"});
+    return out;
+  }
+
+  function roomMatchesFilter(r, mode){
+    var beds = bedsForRoom(r);
+    var hasCensus = false, hasObs = false, hasAdm = false, hasEmpty = false, hasHosp = false;
+    for (var i=0;i<beds.length;i++){
+      var st = bedStatus[beds[i]];
+      if (st === "Occupied" || st === "On Observation") hasCensus = true;
+      if (st === "On Observation") hasObs = true;
+      if (st === "Pending Admission") hasAdm = true;
+      if (st === "Empty") hasEmpty = true;
+      if (st === "Out to Hospital") hasHosp = true;
+    }
+    if (mode === "hasCensus") return hasCensus;
+    if (mode === "hasObs") return hasObs;
+    if (mode === "hasAdm") return hasAdm;
+    if (mode === "hasEmpty") return hasEmpty;
+    if (mode === "hasHosp") return hasHosp;
+    return true;
+  }
+
+  function renderRoomList(){
+    var mode = get("filterMode").value || "all";
+    var list = get("roomList");
+    list.innerHTML = "";
+
+    var rooms = [];
+    for (var i=0;i<ALL_ROOMS.length;i++){
+      var r = ALL_ROOMS[i];
+      if (roomMatchesFilter(r, mode)) rooms.push(r);
+    }
+
+    
+    // If a saved filter results in zero rooms, fall back to showing all rooms (prevents "blank rooms" confusion).
+    if (rooms.length === 0 && mode !== "all"){
+      try { get("filterMode").value = "all"; } catch(e){}
+      mode = "all";
+      for (var k=0;k<ALL_ROOMS.length;k++){
+        var rr = ALL_ROOMS[k];
+        if (roomMatchesFilter(rr, mode)) rooms.push(rr);
+      }
+      saveState();
+    }
+
+    if (rooms.indexOf(selectedRoom) < 0 && rooms.length) selectedRoom = rooms[0];
+
+    for (var i=0;i<rooms.length;i++){
+      (function(r){
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "roomBtn" + (r === selectedRoom ? " active" : "");
+
+        var left = document.createElement("span");
+        left.textContent = "Room " + r;
+
+        var badges = document.createElement("span");
+        badges.className = "roomBadges";
+
+        var bs = roomBadgesFor(r);
+        for (var j=0;j<bs.length;j++){
+          var sp = document.createElement("span");
+          sp.className = "badge " + (bs[j].cls || "");
+          sp.textContent = bs[j].text;
+          badges.appendChild(sp);
+        }
+
+        btn.appendChild(left);
+        btn.appendChild(badges);
+
+        btn.addEventListener("click", function(){
+          selectedRoom = r;
+          renderRoomList();
+          renderRoomEditor();
+          saveState();
+        });
+
+        list.appendChild(btn);
+      })(rooms[i]);
+    }
+
+    if (rooms.length === 0){
+      var empty = document.createElement("div");
+      empty.style.padding = "10px";
+      empty.style.color = "#64748b";
+      empty.style.fontSize = "12px";
+      empty.textContent = "(no rooms match filter)";
+      list.appendChild(empty);
+    }
+  }
+
+  function setRoomStatus(room, newStatus){
+    var beds = bedsForRoom(room);
+    for (var i=0;i<beds.length;i++){
+      bedStatus[beds[i]] = newStatus;
+      if (newStatus !== "On Observation") bedObsGroup[beds[i]] = "Unassigned";
+    }
+  }
+
+  function statusClass(st){
+    if (st === "Occupied") return "occ";
+    if (st === "On Observation") return "obs";
+    if (st === "Pending Admission") return "adm";
+    if (st === "Out to Hospital") return "hosp";
+    return "empty";
+  }
+
+  var lastAssignments = null;
+  var lastWorkloadSnapshot = null;
+  var lastLabels = null;
+  var cnaCardOpen = [];
+  var lastNote = "";
+
+  function renderRoomEditor(){
+    var title = get("roomEditorTitle");
+    var body = get("roomEditorBody");
+    var r = selectedRoom;
+
+    title.textContent = "Room " + r + " — Edit beds";
+
+    var ids = ["roomOcc","roomEmpty","roomObs","roomAdm"];
+    for (var i=0;i<ids.length;i++) get(ids[i]).disabled = false;
+
+    body.innerHTML = "";
+
+    var beds = bedsForRoom(r);
+
+    var obsBeds = [];
+    for (var i=0;i<beds.length;i++){
+      if (bedStatus[beds[i]] === "On Observation") obsBeds.push(beds[i]);
+    }
+
+    var obsBlock = document.createElement("div");
+    obsBlock.className = "bedRow";
+    obsBlock.innerHTML =
+      '<div class="bedLabel">Obs</div>' +
+      '<div class="inlineRow">' +
+        '<select id="roomObsGroupSel"></select>' +
+        '<span class="helper" style="margin:0;">OBS: choose observer group (if needed)</span>' +
+      '</div>';
+    body.appendChild(obsBlock);
+
+    var sel = obsBlock.querySelector("#roomObsGroupSel");
+    for (var i=0;i<OBS_GROUPS.length;i++){
+      var opt = document.createElement("option");
+      opt.value = OBS_GROUPS[i];
+      opt.textContent = OBS_GROUPS[i];
+      sel.appendChild(opt);
+    }
+
+    if (obsBeds.length === 0){
+      sel.value = "Unassigned";
+      sel.disabled = true;
+      obsBlock.classList.add("empty");
+    } else {
+      var first = bedObsGroup[obsBeds[0]] || "Unassigned";
+      var allSame = true;
+      for (var i=0;i<obsBeds.length;i++){
+        if ((bedObsGroup[obsBeds[i]] || "Unassigned") !== first){ allSame = false; break; }
+      }
+      sel.value = allSame ? first : "Unassigned";
+      sel.disabled = false;
+      obsBlock.classList.add("obs");
+    }
+
+    sel.addEventListener("change", function(){
+      pushHistory();
+      var chosen = sel.value;
+      for (var i=0;i<beds.length;i++){
+        if (bedStatus[beds[i]] === "On Observation") bedObsGroup[beds[i]] = chosen;
+      }
+      updateChips();
+      renderRoomList();
+      saveState();
+      if (lastAssignments) renderObsSummary();
+    });
+
+    for (var i=0;i<beds.length;i++){
+      (function(b){
+        var row = document.createElement("div");
+        row.className = "bedRow " + statusClass(bedStatus[b]);
+        row.setAttribute("data-bed", b);
+
+        var label = document.createElement("div");
+        label.className = "bedLabel";
+        label.textContent = b;
+
+        var right = document.createElement("div");
+        right.className = "inlineRow";
+
+        var stSel = document.createElement("select");
+        for (var k=0;k<STATUS.length;k++){
+          var o = document.createElement("option");
+          o.value = STATUS[k];
+          o.textContent = STATUS[k];
+          stSel.appendChild(o);
+        }
+        stSel.value = bedStatus[b];
+
+        stSel.addEventListener("change", function(){
+          pushHistory();
+          bedStatus[b] = stSel.value;
+          if (bedStatus[b] !== "On Observation") bedObsGroup[b] = "Unassigned";
+          renderRoomEditor();
+          renderRoomList();
+          updateChips();
+          saveState();
+          if (lastAssignments) renderObsSummary();
+        });
+
+        right.appendChild(stSel);
+        row.appendChild(label);
+        row.appendChild(right);
+        body.appendChild(row);
+      })(beds[i]);
+    }
+  }
+
+  // Assignment logic (randomize who gets +1)
+  function secureRandInt(maxExclusive){
+    // Fallback if crypto not available
+    if (window.crypto && window.crypto.getRandomValues){
+      var arr = new Uint32Array(1);
+      window.crypto.getRandomValues(arr);
+      return arr[0] % maxExclusive;
+    }
+    return Math.floor(Math.random() * maxExclusive);
+  }
+  function shuffleInPlace(a){
+    for (var i=a.length-1; i>0; i--){
+      var j = secureRandInt(i+1);
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+  function buildFairSizes(total, cnaCount){
+    var base = Math.floor(total / cnaCount);
+    var rem  = total % cnaCount;
+    var sizes = [];
+    for (var i=0;i<cnaCount;i++) sizes.push(base + (i < rem ? 1 : 0));
+    if (randomizeTotals) shuffleInPlace(sizes);
+    return sizes;
+  }
+  function assignWorkloadBedsContinuous(workloadBedsOrdered, cnaCount){
+    var cnAs = [];
+    for (var i=0;i<cnaCount;i++) cnAs.push({patients:0, beds:[]});
+    var total = workloadBedsOrdered.length;
+    if (total === 0) return cnAs;
+
+    var sizes = buildFairSizes(total, cnaCount);
+    var idx = 0;
+    for (var i=0;i<cnaCount;i++){
+      var take = sizes[i];
+      var slice = workloadBedsOrdered.slice(idx, idx + take);
+      cnAs[i].beds = slice;
+      cnAs[i].patients = slice.length;
+      idx += take;
+    }
+    return cnAs;
+  }
+
+  function groupBedsByRoom(beds){
+    var map = {};
+    for (var i=0;i<beds.length;i++){
+      var r = roomNum(beds[i]);
+      if (!map[r]) map[r] = [];
+      map[r].push(beds[i]);
+    }
+    var entries = [];
+    for (var k in map){
+      map[k].sort(function(a,b){ return a.slice(-1).localeCompare(b.slice(-1)); });
+      entries.push([parseInt(k,10), map[k]]);
+    }
+    entries.sort(function(a,b){ return a[0]-b[0]; });
+    return entries;
+  }
+  function bedRunLabel(beds){
+    if (!beds || beds.length === 0) return "(no beds)";
+    return beds[0] + " → " + beds[beds.length - 1];
+  }
+
+  
+  function buildRoomChecklistHTML(){
+    // Room # checklist for paper handoffs
+    var html = '<div class="printOnly roomChecklist">';
+    html += '<div class="roomChecklistTitle">Room list</div>';
+    html += '<div class="roomChecklistGrid">';
+    for (var i=0;i<ALL_ROOMS.length;i++){
+      var r = ALL_ROOMS[i];
+      html += '<span class="rcItem"><span class="rcBox"></span><span class="rcNum">' + r + '</span></span>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function isPrintRoomListOn(){
+    var el = get("printRoomList");
+    return !!(el && el.checked);
+  }
+
+  function renderAssignments(assignments, labels, note){
+    lastAssignments = assignments;
+    lastLabels = labels;
+    lastNote = note || "";
+    lastLabels = Array.isArray(labels) ? labels.slice() : null;
+    lastNote = note || "";
+    var box = get("assignments");
+    box.innerHTML = "";
+
+    if (lastNote){
+      var noteDiv = document.createElement("div");
+      noteDiv.className = "box";
+      noteDiv.style.borderStyle = "dashed";
+      noteDiv.style.background = "rgba(37,99,235,.04)";
+        '<div class="rows"><div class="line">' + escapeHtml(lastNote) + '</div></div>';
+      box.appendChild(noteDiv);
+    }
+
+    for (var i=0;i<assignments.length;i++){
+      (function(cna, idx){
+        var div = document.createElement("div");
+        div.className = "box cnaBox";
+        var compact = (window.innerWidth || 0) < 760;
+        div.classList.toggle("compact", compact);
+        // Open/closed state is controlled by the user's per-card toggle (if any),
+        // otherwise by the global default (Details default).
+        var hasUser = (cnaCardOpen[idx] !== undefined && cnaCardOpen[idx] !== null);
+        var defOpen = !!(get("detailsDefault") && get("detailsDefault").checked);
+        var isOpen = hasUser ? !!cnaCardOpen[idx] : defOpen;
+        div.classList.toggle("open", isOpen);
+
+        var head = document.createElement("div");
+        head.className = "boxHead";
+
+        var h = document.createElement("h3");
+        var labelNum = (Array.isArray(lastLabels) && lastLabels[idx] != null) ? lastLabels[idx] : (idx+1);
+        h.textContent = "CNA " + labelNum;
+
+        var headRight = document.createElement("div");
+        headRight.style.display = "flex";
+        headRight.style.gap = "8px";
+        headRight.style.flexWrap = "wrap";
+        headRight.style.alignItems = "center";
+
+        var tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = cna.patients + " workload";
+
+        var copyBtn = document.createElement("button");
+        copyBtn.className = "tiny";
+        copyBtn.textContent = "Copy";
+        copyBtn.addEventListener("click", function(){ copySingleCna(idx); });
+
+        headRight.appendChild(tag);
+        headRight.appendChild(copyBtn);
+
+
+        var toggleBtn = document.createElement("button");
+        toggleBtn.className = "cnaToggle";
+        toggleBtn.innerHTML = '<span class="car">▾</span><span class="txt">Details</span>';
+        // Set initial label
+        (function(){
+          // Show the Details toggle on all screen sizes.
+          var hasUser = (cnaCardOpen[idx] !== undefined && cnaCardOpen[idx] !== null);
+          var defOpen = !!(get("detailsDefault") && get("detailsDefault").checked);
+          // If the user has explicitly toggled this card before, respect that; otherwise use the default.
+          var openNow = hasUser ? !!cnaCardOpen[idx] : defOpen;
+          toggleBtn.querySelector('.car').textContent = openNow ? '▴' : '▾';
+          toggleBtn.querySelector('.txt').textContent = openNow ? 'Hide' : 'Details';
+        })();
+
+        toggleBtn.addEventListener("click", function(){
+          // toggle open/closed in compact mode
+          var isOpen = !!cnaCardOpen[idx];
+          cnaCardOpen[idx] = !isOpen;
+          saveState();
+          renderAssignments(lastAssignments, lastLabels, lastNote);
+        });
+        headRight.appendChild(toggleBtn);
+
+        head.appendChild(h);
+        head.appendChild(headRight);
+
+        var rows = document.createElement("div");
+        rows.className = "rows";
+
+        var summary = document.createElement("div");
+        summary.className = "cnaSummary cnaRange";
+        summary.textContent = "Room Range: " + bedRunLabel(cna.beds);
+        rows.appendChild(summary);
+
+        var details = document.createElement("div");
+        details.className = "cnaDetails";
+
+        var byRoom = groupBedsByRoom(cna.beds);
+        for (var j=0;j<byRoom.length;j++){
+          var room = byRoom[j][0];
+          var beds = byRoom[j][1];
+          var pretty = [];
+          for (var k=0;k<beds.length;k++){
+            pretty.push(beds[k] + (bedStatus[beds[k]] === "Pending Admission" ? " (ADM)" : ""));
+          }
+          var line = document.createElement("div");
+          line.className = "line";
+          line.innerHTML = "<b>Room " + room + "</b>: " + pretty.join(", ") + " <small>(" + beds.length + ")</small>";
+          details.appendChild(line);
+        }
+
+        var hasAnyAdm = false;
+        for (var j=0;j<cna.beds.length;j++){
+          if (bedStatus[cna.beds[j]] === "Pending Admission"){ hasAnyAdm = true; break; }
+        }
+        if (hasAnyAdm){
+          var note = document.createElement("div");
+          note.className = "run";
+          note.textContent = "";
+          details.appendChild(note);
+        }
+
+        rows.appendChild(details);
+
+        if (isPrintRoomListOn()){
+          var rl = document.createElement("div");
+          rl.innerHTML = buildRoomChecklistHTML();
+          // buildRoomChecklistHTML returns a wrapper div; append its first child
+          if (rl.firstChild) rows.appendChild(rl.firstChild);
+        }
+
+        div.appendChild(head);
+        div.appendChild(rows);
+        box.appendChild(div);
+      })(assignments[i], i);
+    }
+    updateToggleAllDetailsButton();
+  }
+
+  function computeAllDetailsOpen(){
+    if(!lastAssignments || !Array.isArray(lastAssignments)) return null;
+    var defOpen = !!(get("detailsDefault") && get("detailsDefault").checked);
+    for(var i=0;i<lastAssignments.length;i++){
+      var hasUser = (cnaCardOpen[i] !== undefined && cnaCardOpen[i] !== null);
+      var openNow = hasUser ? !!cnaCardOpen[i] : defOpen;
+      if(!openNow) return false;
+    }
+    return true;
+  }
+
+  function updateToggleAllDetailsButton(){
+    var btn = get("toggleAllDetailsBtn");
+    if(!btn) return;
+    if(!lastAssignments){ btn.style.display = "none"; return; }
+    btn.style.display = "";
+    var allOpen = computeAllDetailsOpen();
+    btn.textContent = (allOpen === true) ? "Collapse all" : "Expand all";
+  }
+
+  function toggleAllDetails(){
+    // Works on both mobile and desktop
+    if(!lastAssignments) return;
+    var allOpen = computeAllDetailsOpen();
+    var target = (allOpen === true) ? false : true;
+    cnaCardOpen = [];
+    for(var i=0;i<lastAssignments.length;i++) cnaCardOpen[i] = target;
+    saveState();
+    renderAssignments(lastAssignments, lastLabels, lastNote);
+  }
+
+  function renderObsSummary(){
+    var box = get("obsSummary");
+    box.innerHTML = "";
+
+    var obsBeds = getBedsByStatus(["On Observation"]);
+    if (obsBeds.length === 0){
+      box.innerHTML = '<div style="color:#64748b;font-size:12px">(no beds marked On Observation)</div>';
+      return;
+    }
+
+    var groups = {};
+    for (var i=0;i<obsBeds.length;i++){
+      var b = obsBeds[i];
+      var g = bedObsGroup[b] || "Unassigned";
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(b);
+    }
+
+    var ordered = [];
+    for (var i=0;i<OBS_GROUPS.length;i++){
+      var gname = OBS_GROUPS[i];
+      if (groups[gname] && gname !== "Unassigned") ordered.push(gname);
+    }
+    if (groups["Unassigned"]) ordered.push("Unassigned");
+
+    for (var i=0;i<ordered.length;i++){
+      var g = ordered[i];
+      var beds = groups[g] || [];
+
+      var div = document.createElement("div");
+      div.className = "box";
+
+      var head = document.createElement("div");
+      head.className = "boxHead";
+      var h = document.createElement("h3");
+      h.textContent = g;
+      var tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = beds.length + " on observation";
+      head.appendChild(h);
+      head.appendChild(tag);
+
+      var rows = document.createElement("div");
+      rows.className = "rows";
+
+      var byRoom = groupBedsByRoom(beds);
+      for (var j=0;j<byRoom.length;j++){
+        var room = byRoom[j][0];
+        var bedList = byRoom[j][1];
+        var line = document.createElement("div");
+        line.className = "line";
+        line.innerHTML = "<b>Room " + room + "</b>: " + bedList.join(", ") + " <small>(" + bedList.length + ")</small>";
+        rows.appendChild(line);
+      }
+
+      div.appendChild(head);
+      div.appendChild(rows);
+      box.appendChild(div);
+    }
+  }
+
+  function renderHospList(){
+    var host = get("hospList");
+    if (!host) return;
+
+    // Collect beds marked Out to Hospital
+    var beds = [];
+    for (var i=0;i<ALL_BEDS.length;i++){
+      var b = ALL_BEDS[i];
+      if (bedStatus[b] === "Out to Hospital") beds.push(b);
+    }
+
+    beds.sort(bedSort);
+
+    // Display with commas (not pills) so it is always readable on mobile
+    host.textContent = beds.length ? beds.join(", ") : "—";
+
+    var btn = get("copyHospBtn");
+    if (btn) btn.disabled = (beds.length === 0);
+
+  }
+
+  function copyHospOnly(){
+    var c = getCounts();
+    var beds = (c.hosp || []).slice();
+    beds.sort(function(a,b){
+      var ra = parseInt(a,10), rb = parseInt(b,10);
+      if (ra !== rb) return ra - rb;
+      return a.slice(-1).localeCompare(b.slice(-1));
+    });
+    var text = beds.length ? ("Out to Hospital:\n" + beds.join(", ")) : "Out to Hospital:\n(none)";
+    copyText(text);
+    toast("Hospital list copied");
+  }
+
+  function updatePrintHeaderMeta(){
+    var d = get("printDate").value || "";
+    var shift = get("printShift").value || "";
+    var cn = get("cnaCount").value || "";
+    var c = getCounts();
+
+    var niceDate = d ? new Date(d + "T00:00:00").toLocaleDateString() : "—";
+    get("phDate").textContent = niceDate;
+    get("phShift").textContent = shift || "—";
+    get("phCnas").textContent = cn || "—";
+    get("phCensus").textContent = c.censusBeds;
+    get("phWorkload").textContent = c.workloadBeds;
+    get("phObs").textContent = c.obs.length;
+    get("phAdm").textContent = c.adm.length;
+    get("phGenerated").textContent = new Date().toLocaleString();
+  }
+
+  function setDefaultDateIfEmpty(){
+    var d = get("printDate");
+    if (!d.value){
+      var now = new Date();
+      var y = now.getFullYear();
+      var m = String(now.getMonth()+1).padStart(2,"0");
+      var da = String(now.getDate()).padStart(2,"0");
+      d.value = y + "-" + m + "-" + da;
+    }
+  }
+
+  function syncOnePerPage(){
+    var on = !!get("onePerPage").checked;
+    document.body.classList.toggle("print-one-per", on);
+  }
+
+  function formatHeaderText(){
+    var d = get("printDate").value || "";
+    var shift = get("printShift").value || "";
+    var cn = get("cnaCount").value || "";
+    var c = getCounts();
+    var niceDate = d ? new Date(d + "T00:00:00").toLocaleDateString() : "—";
+    return [
+      "Catered Cottage Healthcare — CNA Assignments",
+      "Date: " + niceDate + " | Shift: " + shift + " | CNAs: " + cn,
+      "Census: " + c.censusBeds + " | CNA Workload: " + c.workloadBeds + " | On Observation: " + c.obs.length + " | Pending Admission: " + c.adm.length,
+      "Generated: " + new Date().toLocaleString()
+      ].concat(lastNote ? ["Note: " + lastNote] : []).join("\n");
+  }
+
+  function formatCnaText(idx){
+    if (!lastAssignments) return "";
+    var cna = lastAssignments[idx];
+    var lines = [];
+    var labelNum = (Array.isArray(lastLabels) && lastLabels[idx] != null) ? lastLabels[idx] : (idx+1);
+    lines.push("CNA " + labelNum + " — Workload: " + cna.patients);
+    lines.push("Range: " + bedRunLabel(cna.beds));
+    var byRoom = groupBedsByRoom(cna.beds);
+    for (var i=0;i<byRoom.length;i++){
+      var room = byRoom[i][0];
+      var beds = byRoom[i][1];
+      var pretty = [];
+      for (var k=0;k<beds.length;k++){
+        pretty.push(beds[k] + (bedStatus[beds[k]] === "Pending Admission" ? " (ADM)" : ""));
+      }
+      lines.push("Room " + room + ": " + pretty.join(", "));
+    }
+    lines.push("");
+    return lines.join("\n");
+  }
+
+  function formatObsText(){
+    var obsBeds = getBedsByStatus(["On Observation"]);
+    if (obsBeds.length === 0) return "Observation List (On Observation): (none)";
+    var groups = {};
+    for (var i=0;i<obsBeds.length;i++){
+      var b = obsBeds[i];
+      var g = bedObsGroup[b] || "Unassigned";
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(b);
+    }
+    var ordered = [];
+    for (var i=0;i<OBS_GROUPS.length;i++){
+      var gname = OBS_GROUPS[i];
+      if (groups[gname] && gname !== "Unassigned") ordered.push(gname);
+    }
+    if (groups["Unassigned"]) ordered.push("Unassigned");
+
+    var out = [];
+    out.push("Observation List (On Observation)");
+    for (var i=0;i<ordered.length;i++){
+      var g = ordered[i];
+      var beds = groups[g] || [];
+      beds.sort(function(a,b){
+        var ra = parseInt(a,10), rb = parseInt(b,10);
+        if (ra !== rb) return ra - rb;
+        return a.slice(-1).localeCompare(b.slice(-1));
+      });
+      out.push(g + ": " + beds.join(", "));
+    }
+    return out.join("\n");
+  }
+
+  function copyText(text){
+    // Try modern clipboard API (secure contexts)
+    if (navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(text).then(function(){
+        toast("Copied");
+      }).catch(function(){
+        fallbackCopy(text);
+      });
+      return;
+    }
+    fallbackCopy(text);
+  }
+
+  function fallbackCopy(text){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok){ toast("Copied"); return; }
+    }catch(e){}
+    openCopyModal(text);
+    toast("Clipboard blocked");
+  }
+
+  function copySingleCna(idx){ copyText(formatHeaderText() + "\n\n" + formatCnaText(idx)); }
+  function copyAll(){
+    var parts = [formatHeaderText(), ""];
+    for (var i=0;i<lastAssignments.length;i++){ parts.push(formatCnaText(i), ""); }
+    if (get("copyIncludeObs").checked){ parts.push(formatObsText(), ""); }
+    copyText(parts.join("\n"));
+  }
+  function copyAllForWord(){
+    var addBreaks = get("copyPageBreaks").checked;
+    var pageBreak = "\n\n——— PAGE BREAK ——-\n\n";
+    var parts = [formatHeaderText(), ""];
+    for (var i=0;i<lastAssignments.length;i++){
+      parts.push(formatCnaText(i));
+      if (i !== lastAssignments.length - 1) parts.push(addBreaks ? pageBreak : "\n");
+      else parts.push("\n");
+    }
+    if (get("copyIncludeObs").checked){ parts.push(formatObsText(), ""); }
+    copyText(parts.join("\n"));
+  }
+  function copyObsOnly(){ copyText(formatHeaderText() + "\n\n" + formatObsText()); }
+
+  function jumpToRoom(q){
+    q = String(q || "").trim().toUpperCase();
+    if (!q) return;
+    var m = q.match(/^(\d{1,2})([ABC])?$/);
+    if (!m) return;
+    var room = parseInt(m[1],10);
+    if (ALL_ROOMS.indexOf(room) < 0) return;
+
+    selectedRoom = room;
+    renderRoomList();
+    renderRoomEditor();
+    saveState();
+
+    // Auto-scroll: make sure the selected room and editor are visible (especially when lists are long).
+    setTimeout(function(){
+      try{
+        var list = get("roomList");
+        if (list){
+          var active = list.querySelector(".roomBtn.active");
+          if (active && active.scrollIntoView) active.scrollIntoView({ block: "center" });
+        }
+        var title = get("roomEditorTitle");
+        if (title && title.scrollIntoView) title.scrollIntoView({ block: "start" });
+
+        // If user typed a specific bed letter (e.g., 20A), scroll to that bed row too.
+        var letter = m[2] || "";
+        if (letter){
+          var bed = String(room) + letter;
+          var row = document.querySelector('[data-bed="' + bed + '"]');
+          if (row && row.scrollIntoView) row.scrollIntoView({ block: "center" });
+        }
+      }catch(e){}
+    }, 0);
+  }
+
+  function roomOrderingBeds(){
+    var beds = getBedsByStatus(["Occupied","Pending Admission"]);
+    beds.sort(function(a,b){
+      var ra = parseInt(a,10), rb = parseInt(b,10);
+      if (ra !== rb) return ra - rb;
+      return a.slice(-1).localeCompare(b.slice(-1));
+    });
+    return beds;
+  }
+
+  function doGenerate(reuseSnapshot){
+    var cnaCount = parseInt(get("cnaCount").value || "7", 10);
+    if (isNaN(cnaCount)) cnaCount = 7;
+    cnaCount = Math.max(1, Math.min(30, cnaCount));
+    get("cnaCount").value = cnaCount;
+
+    var workloadBeds = (reuseSnapshot && lastWorkloadSnapshot) ? lastWorkloadSnapshot.slice() : roomOrderingBeds();
+
+    ensureCnaAdjust();
+    var targets = computeTargetsWithAdjust(workloadBeds.length, cnaCount, cnaAdjust);
+    var spread = !!(get("spreadRooms") && get("spreadRooms").checked);
+    var assignments = spread ? assignWorkloadBedsGreedy(workloadBeds, targets) : assignWorkloadBedsByTargets(workloadBeds, targets);
+    renderAssignments(assignments, null, "");
+    renderObsSummary();
+
+    var loads = [];
+    for (var i=0;i<assignments.length;i++) loads.push(assignments[i].patients);
+    var min = loads.length ? Math.min.apply(null, loads) : 0;
+    var max = loads.length ? Math.max.apply(null, loads) : 0;
+    get("loadStats").textContent = min + "/" + max + "/" + (max-min);
+
+    lastAssignments = assignments;
+    lastWorkloadSnapshot = workloadBeds;
+
+
+    get("shuffleAgain").disabled = false;
+    get("printBtn").disabled = false;
+    get("copyAllBtn").disabled = false;
+    get("copyObsBtn").disabled = false;
+    get("copyAllWordBtn").disabled = false;
+    if(get("toggleAllDetailsBtn")) get("toggleAllDetailsBtn").disabled = false;
+
+    updatePrintHeaderMeta();
+    renderLightLoad();
+    saveState();
+  }
+
+
+  function ensureCnaNames(){
+    var n = parseInt(get("cnaCount").value || "1", 10);
+    if (!Array.isArray(cnaNames)) cnaNames = [];
+    while (cnaNames.length < n) cnaNames.push("");
+    if (cnaNames.length > n) cnaNames = cnaNames.slice(0, n);
+  }
+
+  
+  function ensureCnaAdjust(){
+    var n = parseInt(get("cnaCount").value || "1", 10);
+    if (!Array.isArray(cnaAdjust)) cnaAdjust = [];
+    while (cnaAdjust.length < n) cnaAdjust.push(0);
+    if (cnaAdjust.length > n) cnaAdjust = cnaAdjust.slice(0, n);
+  }
+
+  function ensureLightRules(){
+    if (!Array.isArray(lightRules)) lightRules = [];
+    // Migrate: if no rules saved but cnaAdjust has reductions, build rules from it once.
+    if (lightRules.length === 0 && Array.isArray(cnaAdjust)){
+      for (var i=0;i<cnaAdjust.length;i++){
+        if (cnaAdjust[i] < 0){
+          lightRules.push({ cna: i+1, adj: cnaAdjust[i] });
+        }
+      }
+    }
+  }
+
+  function rulesToAdjust(){
+    ensureCnaAdjust();
+    // reset
+    for (var i=0;i<cnaAdjust.length;i++) cnaAdjust[i] = 0;
+
+    ensureLightRules();
+    for (var r=0;r<lightRules.length;r++){
+      var c = parseInt(lightRules[r].cna || "", 10);
+      var a = parseInt(lightRules[r].adj || "0", 10) || 0;
+      if (isNaN(c) || c < 1 || c > cnaAdjust.length) continue;
+      if (a !== -1 && a !== -2) continue;
+      cnaAdjust[c-1] = a; // last rule wins
+    }
+  }
+
+  function setLightPill(){
+    var pill = get("lightPill");
+    if (!pill) return;
+    ensureLightRules();
+    var on = lightRules.length > 0;
+    pill.textContent = on ? ("ON (" + lightRules.length + ")") : "OFF";
+    pill.className = "lpPill" + (on ? " on" : "");
+  }
+
+  function renderLightLoad(){
+    var panel = get("lightPanel");
+    var body = get("lightBody");
+    var rows = get("lightRules");
+    var toggle = get("lightToggle");
+    var caret = get("lightCaret");
+    if (!panel || !rows || !toggle || !body) return;
+
+    ensureCnaAdjust();
+    ensureLightRules();
+    rulesToAdjust();
+    setLightPill();
+
+    // keep expanded state in memory (localStorage via saveState already)
+    var expanded = panel.getAttribute("data-open") === "1";
+    body.hidden = !expanded;
+    if (caret) caret.textContent = expanded ? "▴" : "▾";
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+    rows.innerHTML = "";
+
+    if (lightRules.length === 0){
+      var hint = document.createElement("div");
+      hint.style.fontSize = "12px";
+      hint.style.color = "var(--muted)";
+      hint.textContent = "No light-load CNAs selected. Click “+ Add CNA”.";
+      rows.appendChild(hint);
+      return;
+    }
+
+    for (var i=0;i<lightRules.length;i++){
+      (function(idx){
+        var rule = lightRules[idx];
+
+        var wrap = document.createElement("div");
+        wrap.className = "lightRule";
+
+        var left = document.createElement("div");
+        left.className = "left";
+
+        var tag = document.createElement("div");
+        tag.className = "tag";
+        tag.textContent = "CNA " + (rule.cna || "?");
+
+        var cnaSel = document.createElement("select");
+        // CNA options
+        var n = parseInt(get("cnaCount").value || "1", 10);
+        for (var k=1;k<=n;k++){
+          var op = document.createElement("option");
+          op.value = String(k);
+          op.textContent = "CNA " + k;
+          cnaSel.appendChild(op);
+        }
+        cnaSel.value = String(rule.cna || 1);
+
+        var adjSel = document.createElement("select");
+        adjSel.innerHTML = ""
+          + "<option value='0'>OFF</option>"
+          + "<option value='-1'>-1 patient</option>"
+          + "<option value='-2'>-2 patients</option>";
+        adjSel.value = String(rule.adj || -1);
+
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "remove";
+        rm.textContent = "Remove";
+
+        cnaSel.addEventListener("change", function(){
+          rule.cna = parseInt(cnaSel.value || "1", 10) || 1;
+          saveState();
+          renderLightLoad();
+        });
+        adjSel.addEventListener("change", function(){
+          var v = parseInt(adjSel.value || "0", 10);
+          if (!isFinite(v)) v = -1;
+          if (v === 0){
+            // OFF -> remove this rule completely
+            lightRules.splice(idx, 1);
+            saveState();
+            renderLightLoad();
+            return;
+          }
+          rule.adj = v;
+          saveState();
+          setLightPill();
+        });
+        rm.addEventListener("click", function(){
+          lightRules.splice(idx, 1);
+          saveState();
+          renderLightLoad();
+        });
+
+        left.appendChild(tag);
+        left.appendChild(cnaSel);
+        left.appendChild(adjSel);
+
+        wrap.appendChild(left);
+        wrap.appendChild(rm);
+
+        rows.appendChild(wrap);
+      })(i);
+    }
+  }
+
+
+  
+
+  function shuffledIndices(n){
+    var arr = [];
+    for (var i=0;i<n;i++) arr.push(i);
+    // Fisher–Yates shuffle
+    for (var j=n-1;j>0;j--){
+      var k = Math.floor(Math.random()*(j+1));
+      var tmp = arr[j]; arr[j] = arr[k]; arr[k] = tmp;
+    }
+    return arr;
+  }
+
+
+  function computeTargetsWithAdjust(totalBeds, cnaCount, adjustments){
+    var base = Math.floor(totalBeds / cnaCount);
+    var rem = totalBeds % cnaCount;
+
+    // Start all at base
+    var targets = [];
+    for (var i=0;i<cnaCount;i++) targets.push(base);
+
+    // Distribute remainder (+1) either in order or randomly (fair)
+    var order = [];
+    if (randomizeTotals){
+      order = shuffledIndices(cnaCount);
+    } else {
+      for (var i=0;i<cnaCount;i++) order.push(i);
+    }
+    for (var r=0;r<rem;r++){
+      targets[order[r]] += 1;
+    }
+
+    // Apply reductions (0, -1, -2...)
+    var adj = [];
+    for (var i=0;i<cnaCount;i++){
+      adj[i] = (adjustments && typeof adjustments[i] === "number") ? adjustments[i] : 0;
+      if (adj[i] < 0){
+        targets[i] = Math.max(0, targets[i] + adj[i]);
+      }
+    }
+
+    // Fill deficit by adding to other CNAs fairly (prefer non-reduced).
+    // If randomizeTotals is ON, we also randomize tie-breaking so the same CNA doesn't always get the extra.
+    var sum = 0;
+    for (var i=0;i<cnaCount;i++) sum += targets[i];
+    var deficit = totalBeds - sum;
+
+    var eligible = [];
+    for (var i=0;i<cnaCount;i++){ if (adj[i] >= 0) eligible.push(i); }
+    if (!eligible.length){ for (var i=0;i<cnaCount;i++) eligible.push(i); }
+
+    while (deficit > 0){
+      var best = null;
+      var bestSet = [];
+      for (var k=0;k<eligible.length;k++){
+        var ii = eligible[k];
+        var v = targets[ii];
+        if (best === null || v < best){
+          best = v;
+          bestSet = [ii];
+        } else if (v === best){
+          bestSet.push(ii);
+        }
+      }
+      var pick = bestSet[0];
+      if (bestSet.length > 1 && randomizeTotals){
+        pick = bestSet[Math.floor(Math.random()*bestSet.length)];
+      }
+      targets[pick] += 1;
+      deficit -= 1;
+    }
+
+    return targets;
+  }
+
+  function assignWorkloadBedsByTargets(beds, targets){
+    // Assign contiguous-ish blocks while honoring per-CNA targets.
+    // NOTE: We keep CNA order (CNA 1 gets the first/lower rooms, then CNA 2, etc.)
+    // Random totals (fair) randomizes WHO gets the +1 counts, not the room-block order.
+    var n = targets.length;
+
+    var out = [];
+    for (var i=0;i<n;i++) out.push({ patients: 0, beds: [] });
+
+    var cur = 0;
+    for (var b=0;b<beds.length;b++){
+      var guard = 0;
+      while (cur < out.length && out[cur].beds.length >= targets[cur] && guard < out.length+2){
+        cur += 1; guard += 1;
+      }
+      if (cur >= out.length) cur = out.length - 1;
+      out[cur].beds.push(beds[b]);
+    }
+
+    for (var i=0;i<out.length;i++){
+      out[i].beds.sort(bedSort);
+      out[i].patients = out[i].beds.length;
+    }
+    return out;
+  }
+
+
+
+  function assignWorkloadBedsGreedy(beds, targets){
+    // Spread rooms while honoring per-CNA targets: assign next bed to the currently-lightest eligible CNA.
+    var n = targets.length;
+    var out = [];
+    for (var i=0;i<n;i++) out.push({ patients: 0, beds: [] });
+
+    for (var b=0;b<beds.length;b++){
+      var bestIdx = 0;
+      var bestLoad = null;
+
+      for (var i=0;i<n;i++){
+        if (out[i].beds.length >= targets[i]) continue; // cannot exceed target
+        var load = out[i].beds.length;
+        if (bestLoad === null || load < bestLoad){
+          bestLoad = load;
+          bestIdx = i;
+        }
+      }
+
+      // If all are full (shouldn't happen), place into last CNA
+      if (bestLoad === null) bestIdx = n - 1;
+
+      out[bestIdx].beds.push(beds[b]);
+    }
+
+    for (var i=0;i<out.length;i++){
+      out[i].beds.sort(bedSort);
+      out[i].patients = out[i].beds.length;
+    }
+    return out;
+  }
+
+  function computeFinalTargetsFromCurrent(currentLoads, addCount, adjustments){
+    // desired total = sum(currentLoads) + addCount
+    var n = currentLoads.length;
+    var total = 0;
+    for (var i=0;i<n;i++) total += (currentLoads[i] || 0);
+    total += addCount;
+
+    var baseTargets = computeTargetsWithAdjust(total, n, adjustments);
+
+    // Never set target below current load
+    for (var i=0;i<n;i++){
+      baseTargets[i] = Math.max(currentLoads[i] || 0, baseTargets[i]);
+    }
+
+    // If clamped created deficit, add back to non-reduced
+    var sum = 0;
+    for (var i=0;i<n;i++) sum += baseTargets[i];
+    var deficit = total - sum;
+    if (deficit > 0){
+      var eligible = [];
+      for (var i=0;i<n;i++){
+        var a = (adjustments && typeof adjustments[i] === "number") ? adjustments[i] : 0;
+        if (a >= 0) eligible.push(i);
+      }
+      if (!eligible.length){ for (var i=0;i<n;i++) eligible.push(i); }
+      while (deficit > 0){
+        var best = null, bestIdx = eligible[0];
+        for (var k=0;k<eligible.length;k++){
+          var ii = eligible[k];
+          var v = baseTargets[ii];
+          if (best === null || v < best){ best = v; bestIdx = ii; }
+        }
+        baseTargets[bestIdx] += 1;
+        deficit -= 1;
+      }
+    }
+
+    return baseTargets;
+  }
+
+
+  function renderCnaNames(){
+    var grid = get("cnaNamesGrid");
+    if (!grid) return;
+    ensureCnaNames();
+    grid.innerHTML = "";
+    for (var i=0;i<cnaNames.length;i++){
+      var wrap = document.createElement("div");
+      var lbl = document.createElement("div");
+      lbl.style.fontSize = "12px";
+      lbl.style.color = "var(--muted)";
+      lbl.style.marginBottom = "6px";
+      lbl.textContent = "CNA " + (i+1);
+      var inp = document.createElement("input");
+      inp.className = "nameInput";
+      inp.type = "text";
+      inp.placeholder = "Name (optional)";
+      inp.value = cnaNames[i] || "";
+      (function(idx){
+        inp.addEventListener("input", function(){
+          cnaNames[idx] = inp.value.trim();
+          saveState();
+        });
+      })(i);
+      wrap.appendChild(lbl);
+      wrap.appendChild(inp);
+      grid.appendChild(wrap);
+    }
+  }
+
+  // Wire events
+  if(get("clearNamesBtn")) get("clearNamesBtn").addEventListener("click", function(){ ensureCnaNames(); for(var i=0;i<cnaNames.length;i++) cnaNames[i]=""; renderCnaNames(); saveState(); toast("Names cleared"); });
+
+  // Tap top chips to auto-filter the room list
+  function setRoomFilter(mode){
+    var sel = get("filterMode");
+    if (!sel) return;
+    sel.value = mode;
+    saveState();
+    renderRoomList();
+    toast("Filter: " + sel.options[sel.selectedIndex].text);
+    // gently scroll to the filter control on mobile
+    try{ sel.scrollIntoView({behavior:"smooth", block:"center"}); }catch(e){}
+  }
+
+  var empWrap = get("chipEmpWrap");
+  var ohpWrap = get("chipOHPWrap");
+  var obsWrap = get("chipOBSWrap");
+  var admWrap = get("chipADMWrap");
+  if (empWrap) empWrap.addEventListener("click", function(){ setRoomFilter("hasEmpty"); });
+  if (ohpWrap) ohpWrap.addEventListener("click", function(){ setRoomFilter("hasHosp"); });
+  if (obsWrap) obsWrap.addEventListener("click", function(){ setRoomFilter("hasObs"); });
+  if (admWrap) admWrap.addEventListener("click", function(){ setRoomFilter("hasAdm"); });
+
+  get("undoBtn").addEventListener("click", undo);
+  get("redoBtn").addEventListener("click", redo);
+
+  document.addEventListener("keydown", function(e){
+    var z = (e.key === "z" || e.key === "Z");
+    var y = (e.key === "y" || e.key === "Y");
+    if ((e.ctrlKey || e.metaKey) && z){
+      e.preventDefault();
+      undo();
+    } else if ((e.ctrlKey || e.metaKey) && y){
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  get("toggleRandom").addEventListener("click", function(){
+    randomizeTotals = !randomizeTotals;
+    get("randState").textContent = randomizeTotals ? "ON" : "OFF";
+    saveState();
+  });
+  get("searchBox").addEventListener("keydown", function(e){
+    if (e.key === "Enter") jumpToRoom(e.target.value);
+  });
+recalcLoadStats(res.assignments);
+
+
+    get("printBtn").disabled = false;
+    get("copyAllBtn").disabled = false;
+    get("copyObsBtn").disabled = false;
+    get("copyAllWordBtn").disabled = false;
+
+  });
+
+  });
+
+  });
+
+    if (!ok) return;
+  });
+
+
+
+  get("copyIncludeObs").addEventListener("change", saveState);
+  get("copyPageBreaks").addEventListener("change", saveState);
+
+  get("filterMode").addEventListener("change", function(){
+    renderRoomList();
+    renderRoomEditor();
+    saveState();
+  });
+
+  get("printDate").addEventListener("change", saveState);
+  get("printShift").addEventListener("change", saveState);
+  get("onePerPage").addEventListener("change", function(){ syncOnePerPage(); saveState(); });
+  get("printRoomList").addEventListener("change", function(){
+    if (lastAssignments){ renderAssignments(lastAssignments, lastLabels, lastNote); renderObsSummary(); }
+    saveState();
+  });
+
+  // Global legend buttons
+  get("legendAO").addEventListener("click", function(){
+    pushHistory();
+    for (var i=0;i<ALL_BEDS.length;i++){ bedStatus[ALL_BEDS[i]] = "Occupied"; bedObsGroup[ALL_BEDS[i]] = "Unassigned"; }
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+  get("legendAE").addEventListener("click", function(){
+    pushHistory();
+    for (var i=0;i<ALL_BEDS.length;i++){ bedStatus[ALL_BEDS[i]] = "Empty"; bedObsGroup[ALL_BEDS[i]] = "Unassigned"; }
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+  get("legendAObs").addEventListener("click", function(){
+    pushHistory();
+    for (var i=0;i<ALL_BEDS.length;i++){ bedStatus[ALL_BEDS[i]] = "On Observation"; }
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+  get("legendAAdm").addEventListener("click", function(){
+    pushHistory();
+    for (var i=0;i<ALL_BEDS.length;i++){ bedStatus[ALL_BEDS[i]] = "Pending Admission"; bedObsGroup[ALL_BEDS[i]] = "Unassigned"; }
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+
+  // Room quick buttons
+  get("roomOcc").addEventListener("click", function(){
+    pushHistory();
+    setRoomStatus(selectedRoom, "Occupied");
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+  get("roomEmpty").addEventListener("click", function(){
+    pushHistory();
+    setRoomStatus(selectedRoom, "Empty");
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+  get("roomObs").addEventListener("click", function(){
+    pushHistory();
+    setRoomStatus(selectedRoom, "On Observation");
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+  get("roomAdm").addEventListener("click", function(){
+    pushHistory();
+    setRoomStatus(selectedRoom, "Pending Admission");
+    renderRoomList(); renderRoomEditor(); updateChips(); saveState(); if (lastAssignments) renderObsSummary();
+  });
+
+  // Init UI from saved
+  try{
+    if (saved && saved.cnaCount){ var n = parseInt(saved.cnaCount,10); if (!isNaN(n)) get("cnaCount").value = n; }
+    if (saved && typeof saved.randomizeTotals === "boolean") randomizeTotals = saved.randomizeTotals;
+    get("randState").textContent = randomizeTotals ? "ON" : "OFF";
+
+    if (saved && saved.filterMode) get("filterMode").value = saved.filterMode;
+
+    if (saved && saved.printDate) get("printDate").value = saved.printDate;
+    setDefaultDateIfEmpty();
+    if (saved && saved.printShift) get("printShift").value = saved.printShift;
+
+    if (saved && typeof saved.onePerPage === "boolean") get("onePerPage").checked = saved.onePerPage;
+    syncOnePerPage();
+
+    // Print room list (default ON)
+    if (saved && typeof saved.printRoomList === "boolean") get("printRoomList").checked = saved.printRoomList;
+    else get("printRoomList").checked = true;
+
+    // Print CNA room details (default ON)
+    if (saved && typeof saved.printDetails === "boolean") get("printDetails").checked = saved.printDetails;
+    else get("printDetails").checked = true;
+
+    // Show Details by default on mobile (default ON)
+    if (saved && typeof saved.detailsDefault === "boolean") get("detailsDefault").checked = saved.detailsDefault;
+    else get("detailsDefault").checked = true;
+
+    function syncPrintDetails(){
+      var off = !(get("printDetails") && get("printDetails").checked);
+      document.body.classList.toggle("printNoDetails", off);
+    }
     syncPrintDetails();
 
     get("printDetails").addEventListener("change", function(){ syncPrintDetails(); saveState(); });
