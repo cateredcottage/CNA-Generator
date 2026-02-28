@@ -705,18 +705,6 @@
 </style>
 
 <style>
-/* === Room Range Print Styling Enhancement === */
-@media print {
-  .range,
-  .room-range,
-  .range-text,
-  .roomRange,
-  .rangeLabel {
-    font-weight: 700 !important;
-    text-decoration: underline !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.6px !important;
-  }
 }
 
 
@@ -749,6 +737,17 @@
   }
   .divider{
     margin:6px 0 !important;
+  }
+}
+
+
+@media print{
+  .range,.room-range,.range-text,.roomRange,.rangeLabel,.cnaRange,.roomRangeText{
+    font-weight:400 !important;
+    text-decoration:none !important;
+    text-transform:none !important;
+    letter-spacing:0 !important;
+    font-size:12px !important;
   }
 }
 
