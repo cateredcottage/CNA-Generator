@@ -367,20 +367,7 @@
       .box{ break-inside: avoid; page-break-inside: avoid; }
       body.print-one-per .box.cnaBox{ break-after: page; page-break-after: always; }
       body.print-one-per .box.cnaBox:last-of-type{ break-after:auto; page-break-after:auto; }
-
-  /* Print safety: iOS Safari may clip overflow:auto areas. Force full expansion */
-  html, body { height:auto !important; overflow:visible !important; }
-  .scroll, .roomListScroll, .modalBody, .assignmentsWrap, .printWrap {
-    max-height:none !important;
-    height:auto !important;
-    overflow:visible !important;
-  }
-  /* If any cards were inside scroll containers, avoid clipping */
-  .card, .box, .cnaBox { overflow:visible !important; }
-  /* Hide mobile sticky bar / in-app chrome for print */
-  .mobileBar, .stickyBar, .bottomBar { display:none !important; }
-
-}
+    }
 
     /* Error banner */
     .err{
@@ -715,11 +702,6 @@
   }
 }
 
-
-/* Range line: keep clean (no underline / all-caps) */
-.rangeLine, .roomRangeLine { font-weight:600; text-decoration:none !important; text-transform:none !important; }
-@media print { .rangeLine, .roomRangeLine { font-weight:600; text-decoration:none !important; text-transform:none !important; } }
-
 </style>
 
 <style>
@@ -770,6 +752,64 @@
   }
 }
 
+</style>
+
+
+<style id="print-fix-overrides">
+/* FINAL PRINT FIX (iPhone Safari): prevent clipped content + normalize Room Range */
+@media print {
+  /* Give Safari iOS some breathing room for headers/footers */
+  @page { margin: 12mm; }
+
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Hide any sticky/fixed UI and page footer credit during print */
+  .stickyBar, .mobileGenerateBar, .generateBar, .bottomBar,
+  .topbar, .appHeader, header, .footer, .footerCredit,
+  .no-print, .print-hide {
+    display: none !important;
+  }
+
+  /* Remove any transforms/positioning that can clip on iOS print */
+  *, *::before, *::after {
+    transform: none !important;
+    filter: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Most common reason for “cut off” on iPhone: break-inside: avoid + overflow hidden */
+  .cnaCard, .cnaBox, .card, .box, .panel, .assignmentCard, .printCard,
+  .assignmentsWrap, .printWrap, .printRoot {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  /* Normalize the Room Range line (no all-caps/underline, modest weight) */
+  .roomRange,
+  .room-range,
+  .range,
+  .rangeLine,
+  .range-line,
+  .cna-range,
+  .printRange {
+    text-transform: none !important;
+    text-decoration: none !important;
+    letter-spacing: normal !important;
+    font-weight: 600 !important;
+    font-size: inherit !important;
+  }
+
+  /* Keep layout compact */
+  .printHeader, .printHeaderRow { margin-bottom: 6mm !important; }
+  .cnaCard, .cnaBox, .card, .box { margin-bottom: 4mm !important; padding-bottom: 0 !important; }
+}
 </style>
 
 </head>
