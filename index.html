@@ -985,6 +985,15 @@
 }
 
 </style>
+
+<style>
+/* ===== iOS SAFE PRINT HEIGHT FIX (auto-shrink when CNA count is high) ===== */
+@media print{
+  body{ zoom: 1; }
+  body.many-cna-print{ zoom: 0.93; } /* <= adjust if needed */
+}
+</style>
+
 </head>
 <body>
   <div class="topbar">
