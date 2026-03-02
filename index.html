@@ -835,6 +835,52 @@
   .box{ break-inside: avoid !important; page-break-inside: avoid !important; }
 </style>
 
+
+<style id="hospital_print_v3">
+/* ===== iOS Safari print: prevent bottom clipping + safer duplex margins ===== */
+@media print{
+  @page{ size: landscape; margin: 10mm 10mm 14mm 10mm; } /* extra bottom margin */
+
+  /* remove any mobile padding that can mess with print height */
+  body{ padding-bottom: 0 !important; }
+
+  /* hide footer / floating UI that can affect layout */
+  .footerCredit, .mobileActionBar, .topbar, .controls, .leftCol, .copyBar, .tiny, .toast,
+  .lpToggle, .lpBody, .chip, .chips, details.top-chips-details, summary.top-chips-summary{
+    display:none !important;
+  }
+
+  /* Safari sometimes clips rounded containers: disable overflow clipping */
+  .panel, .card, .box, .cnaBox, .roomEditor, .roomList{
+    overflow: visible !important;
+  }
+
+  /* give print root bottom breathing room */
+  #printRoot, #printPaper, #printHeader{
+    overflow: visible !important;
+  }
+  #printRoot{ padding-bottom: 8mm !important; }
+
+  /* stronger "don't split" for CNA cards */
+  .cnaBox, .box{
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* if a card would be split, start it on a new page instead */
+  .cnaBox{ page-break-before: auto; }
+
+  /* keep Observation list together on its own page when needed */
+  .obsBox, #obsBox, .obsSection, .observationSection{
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* slightly smaller overall to reduce page-edge risk */
+  body{ zoom: 0.88; }
+}
+</style>
+
 </head>
 <body>
   <div class="topbar">
