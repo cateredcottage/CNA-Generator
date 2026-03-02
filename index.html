@@ -739,11 +739,11 @@
 <style id="hospitalPrint">
 /* ===== Hospital-style print (iOS-safe) ===== */
 @media print{
-  @page{ size: landscape; margin: 8mm; }
+  @page{ size: landscape; margin: 10mm; }
 
   html, body{ height:auto !important; overflow:visible !important; }
   body{
-    zoom: 0.90;
+    zoom: 0.92;
     background:#fff !important;
     color:#000 !important;
   }
@@ -763,6 +763,9 @@
     display:none !important;
   }
 
+  /* Hide any site footer / floating bars in print */
+  .footerCredit, .mobileActionBar, .toast{ display:none !important; }
+
   /* Print header tighter + more "clinical" */
   #printHeader{
     padding: 6px 0 8px !important;
@@ -772,11 +775,18 @@
   #printHeader h1{ font-size: 18px !important; }
   #printHeader .meta, #printHeader .phRight{ font-size: 11px !important; line-height: 1.25 !important; }
 
-  /* Two-column CNA cards for ~10 CNAs */
+  /* Two-column flow that paginates cleanly on iOS (avoids card splitting) */
   #printRoot{
-    display:grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
+    column-count: 2 !important;
+    column-gap: 10px !important;
+    column-fill: auto !important;
+  }
+  .cnaBox{
+    display: inline-block !important;
+    width: 100% !important;
+    margin: 0 0 8px 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   /* Clean card styling (no rounded "app" look) */
@@ -820,6 +830,9 @@
   /* Remove extra whitespace from Observation / Out to Hospital boxes */
   .boxHead + .rows{ margin-top: 6px !important; }
 }
+
+  /* Keep observation/hospital boxes intact */
+  .box{ break-inside: avoid !important; page-break-inside: avoid !important; }
 </style>
 
 </head>
