@@ -881,6 +881,22 @@
 }
 </style>
 
+
+<style id="print-pagebreak-cna9">
+/* === PRINT: Force CNA 9 to start on a new page (prevents iOS Safari cut-off) === */
+@media print{
+  /* Target only CNA assignment cards inside print output */
+  #printRoot .cnaBox:nth-of-type(9){
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  /* In case cards are inside a grid/columns, also reset any column fill */
+  #printRoot{
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+}
+</style>
 </head>
 <body>
   <div class="topbar">
