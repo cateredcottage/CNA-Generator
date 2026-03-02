@@ -736,6 +736,92 @@
 
 </style>
 
+<style id="hospitalPrint">
+/* ===== Hospital-style print (iOS-safe) ===== */
+@media print{
+  @page{ size: landscape; margin: 8mm; }
+
+  html, body{ height:auto !important; overflow:visible !important; }
+  body{
+    zoom: 0.90;
+    background:#fff !important;
+    color:#000 !important;
+  }
+
+  /* Stop iOS clipping */
+  .panel, .main, .wrap, #app, #printRoot, #printPaper{
+    overflow:visible !important;
+    height:auto !important;
+    max-width:none !important;
+  }
+
+  /* Hide interactive UI in print */
+  button, .tiny, .pillBtn, .miniBtn, .cnaToggle,
+  .mobileActionBar, .toast,
+  .chip, .chips, details, summary,
+  .copyBar, .btnrow, .controls, .topbar, .leftCol{
+    display:none !important;
+  }
+
+  /* Print header tighter + more "clinical" */
+  #printHeader{
+    padding: 6px 0 8px !important;
+    margin-bottom: 8px !important;
+    border-bottom: 2px solid #000 !important;
+  }
+  #printHeader h1{ font-size: 18px !important; }
+  #printHeader .meta, #printHeader .phRight{ font-size: 11px !important; line-height: 1.25 !important; }
+
+  /* Two-column CNA cards for ~10 CNAs */
+  #printRoot{
+    display:grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* Clean card styling (no rounded "app" look) */
+  .box, .card, .cnaBox{
+    box-shadow:none !important;
+    border: 1px solid #000 !important;
+    border-radius: 8px !important;
+    background:#fff !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .box{ padding: 8px !important; }
+  .boxHead{ gap:6px !important; }
+  .boxHead h3{
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    margin: 0 !important;
+  }
+
+  /* Room Range: same size as room lines (no bold/underline) */
+  .cnaRange, .cnaSummary.cnaRange,
+  .range, .room-range, .range-text, .roomRange, .rangeLabel{
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    margin: 4px 0 6px 0 !important;
+    color:#000 !important;
+    display:block !important;
+  }
+
+  /* Room lines: compact + consistent */
+  .rows{ margin-top: 6px !important; gap: 4px !important; }
+  .line{ font-size: 12px !important; margin: 0 !important; }
+  .line small{ font-size: 11px !important; color:#333 !important; }
+
+  /* Section titles small + clear */
+  .sectionTitle{ font-size: 11px !important; color:#000 !important; margin: 6px 0 4px !important; }
+
+  /* Remove extra whitespace from Observation / Out to Hospital boxes */
+  .boxHead + .rows{ margin-top: 6px !important; }
+}
+</style>
+
 </head>
 <body>
   <div class="topbar">
