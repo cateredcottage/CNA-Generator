@@ -995,295 +995,60 @@
 </style>
 
 
-<style id="FINAL_PRINT_OVERRIDE">
-/* ============================================================
-   FINAL PRINT OVERRIDE (single source of truth)
-   Fixes iOS Safari bottom cut-off + conflicting print CSS.
-   - NO transform scaling (causes clipping on iOS)
-   - NO CSS columns/grid in print (unstable pagination on iOS)
-   - Two columns via inline-block
-   - Force CNA 7+ to start on page 2 (first page = 6 CNA cards)
-   ============================================================ */
+<style id="SIMPLE_ORIGINAL_PRINT">
+/* =========================================================
+   SIMPLE / ORIGINAL PRINT LAYOUT
+   - Two newspaper-style columns
+   - Each CNA box takes full column width (one box per column)
+   - Minimal rules, no JS, no scaling
+   ========================================================= */
 @media print{
-  /* Paper */
-  @page{ size: landscape; margin: 10mm 10mm 14mm 10mm; } /* extra bottom margin */
+  @page{ size: landscape; margin: 10mm; }
 
-  /* Kill any older scaling tricks */
   html, body{
-    height:auto !important;
-    overflow:visible !important;
-    -webkit-text-size-adjust:100% !important;
-    transform:none !important;
-  }
-  body{
     background:#fff !important;
     color:#000 !important;
-    zoom: 1 !important;                 /* override earlier zoom */
-    transform: none !important;          /* override earlier transform scale */
-    padding-bottom: 0 !important;
+    transform:none !important;
+    zoom:1 !important;
+    overflow:visible !important;
+    -webkit-text-size-adjust:100% !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    font-size: 11px !important;
   }
 
-  /* Hide interactive UI */
+  /* Hide UI controls */
   .topbar, .controls, .leftCol, .copyBar, .tiny, .toast,
   button, .pillBtn, .miniBtn, .cnaToggle,
   .mobileActionBar, .footerCredit,
   details, summary,
-  .chip, .chips{
-    display:none !important;
-  }
+  .chip, .chips{ display:none !important; }
 
-  /* Unclip containers (Safari loves to clip rounded elements) */
-  .panel, .main, .wrap, #app, #app *, #printRoot, #printPaper, #assignments{
-    overflow:visible !important;
-    height:auto !important;
-    max-width:none !important;
-  }
-
-  /* Header */
-  #printHeader{ display:block !important; break-inside:avoid !important; page-break-inside:avoid !important; }
-
-  /* Turn OFF any previous grid/columns layouts */
+  /* Use classic column flow */
   #assignments, #printRoot{
     display:block !important;
-    column-count: unset !important;
-    -webkit-column-count: unset !important;
-    column-gap: 0 !important;
-    -webkit-column-gap: 0 !important;
-  }
-
-  /* CNA cards: 2 columns via inline-block (most stable on iOS print) */
-  #assignments .box.cnaBox, #printRoot .box.cnaBox, .box.cnaBox{
-    display:inline-block !important;
-    vertical-align: top !important;
-    width: 49.2% !important;
-    margin: 0 0 8px 0 !important;
-    border: 1px solid #000 !important;
-    box-shadow: none !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  /* column gap */
-  #assignments .box.cnaBox:nth-of-type(odd),
-  #printRoot .box.cnaBox:nth-of-type(odd),
-  .box.cnaBox:nth-of-type(odd){ margin-right: 1.2% !important; }
-
-  #assignments .box.cnaBox:nth-of-type(even),
-  #printRoot .box.cnaBox:nth-of-type(even),
-  .box.cnaBox:nth-of-type(even){ margin-right: 0 !important; }
-
-  /* Force Page 2 start at CNA 7 */
-  #assignments .box.cnaBox:nth-of-type(7),
-  #printRoot .box.cnaBox:nth-of-type(7),
-  .box.cnaBox:nth-of-type(7){
-    break-before: page !important;
-    page-break-before: always !important;
-  }
-
-  /* Cancel older experiments (CNA 9 / markers) */
-  #assignments .box.cnaBox:nth-of-type(9),
-  #printRoot .box.cnaBox:nth-of-type(9),
-  .box.cnaBox:nth-of-type(9){
-    break-before: auto !important;
-    page-break-before: auto !important;
-  }
-  .printPageBreak{
-    display:none !important;
-    break-before: auto !important;
-    page-break-before: auto !important;
-  }
-
-  /* Keep Observation / Hospital boxes intact */
-  #printObsWrap, .obsWrap, .obsBox, .obsList, .outToHospitalBox, #obsBox{
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-}
-</style>
-
-
-<style id="TIGHT_PRINT_LAYOUT">
-/* =====================================================
-   TIGHT PRINT LAYOUT — removes whitespace + no cut-off
-   Designed specifically for iOS Safari print
-   ===================================================== */
-@media print {
-
-  @page{
-    size: landscape;
-    margin: 6mm 6mm 8mm 6mm; /* tighter margins */
-  }
-
-  body{
-    font-size:10.5px !important;
-    line-height:1.2 !important;
-  }
-
-  /* tighter header spacing */
-  #printHeader{
-    margin-bottom:6px !important;
-  }
-
-  /* true compact two-column layout */
-  #assignments, #printRoot{
-    display:block !important;
-    font-size:0 !important; /* removes inline-block gaps */
-  }
-
-  .box.cnaBox{
-    display:inline-block !important;
-    vertical-align:top !important;
-    width:49.6% !important;
-    margin:0 0 6px 0 !important;
-    padding:6px 8px !important;
-    font-size:10.5px !important;
-    break-inside:avoid !important;
-    page-break-inside:avoid !important;
-  }
-
-  .box.cnaBox:nth-of-type(odd){
-    margin-right:0.8% !important;
-  }
-
-  /* reduce inner spacing */
-  .box.cnaBox h3,
-  .box.cnaBox h4{
-    margin:2px 0 4px 0 !important;
-  }
-
-  .box.cnaBox p,
-  .box.cnaBox div{
-    margin:1px 0 !important;
-  }
-
-  /* force clean second page start */
-  .box.cnaBox:nth-of-type(7){
-    break-before:page !important;
-    page-break-before:always !important;
-  }
-
-  /* prevent Safari clipping */
-  *{
-    overflow:visible !important;
-  }
-}
-</style>
-
-
-<style id="ULTRA_SAFE_IOS_PRINT">
-/* =====================================================
-   ULTRA SAFE iOS PRINT
-   - Slightly more bottom margin (prevents Safari clipping)
-   - More compact header + boxes to recover space
-   ===================================================== */
-@media print{
-  @page{ size: landscape; margin: 5mm 5mm 12mm 5mm; } /* extra bottom safety */
-
-  body{ font-size:10px !important; line-height:1.15 !important; }
-
-  /* header: compact */
-  #printHeader{ margin:0 0 4px 0 !important; padding:0 !important; }
-  #printHeader h1, #printHeader h2{ margin:0 0 2px 0 !important; }
-  #printHeader .meta, #printHeader .subMeta{ margin:0 !important; }
-
-  /* remove large separators */
-  hr, .divider, .thickLine{ margin:4px 0 !important; }
-
-  /* assignments title: tighter */
-  .sectionTitle, #assignmentsTitle{ margin:4px 0 6px 0 !important; }
-
-  /* 2-column cards: tighter vertical */
-  #assignments, #printRoot{ font-size:0 !important; }
-  .box.cnaBox{
-    width:49.7% !important;
-    padding:5px 7px !important;
-    margin:0 0 4px 0 !important;
-    border-radius:8px !important; /* smaller radius avoids clipping */
-    font-size:10px !important;
-  }
-  .box.cnaBox:nth-of-type(odd){ margin-right:0.6% !important; }
-
-  /* card internals */
-  .box.cnaBox .workloadPill, .box.cnaBox .pill{
-    padding:1px 6px !important;
-    font-size:9px !important;
-  }
-  .box.cnaBox h3{ margin:1px 0 3px 0 !important; font-size:11px !important; }
-  .box.cnaBox h4{ margin:1px 0 3px 0 !important; font-size:10px !important; }
-  .box.cnaBox p{ margin:0.5px 0 !important; }
-
-  /* force page 2 */
-  .box.cnaBox:nth-of-type(7){
-    break-before:page !important;
-    page-break-before:always !important;
-  }
-
-  /* avoid Safari clipping of rounded boxes */
-  .box.cnaBox{ box-shadow:none !important; }
-
-  *{ overflow:visible !important; }
-}
-</style>
-
-
-<style id="PACKED_IOS_PRINT">
-/* =====================================================
-   PACKED iOS PRINT (fills page, removes big blank gaps)
-   Key idea: STOP making every CNA card "unbreakable"
-   and let WebKit column-flow pack the page height.
-   ===================================================== */
-@media print{
-  @page{ size: landscape; margin: 6mm 6mm 10mm 6mm; }
-
-  body{
-    font-size:10.5px !important;
-    line-height:1.2 !important;
-    transform:none !important;
-    zoom:1 !important;
-    -webkit-text-size-adjust:100% !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Remove any previous forced page breaks */
-  .printPageBreak{ display:none !important; }
-  .box.cnaBox:nth-of-type(7),
-  .box.cnaBox:nth-of-type(9){
-    break-before:auto !important;
-    page-break-before:auto !important;
-  }
-
-  /* Use columns to pack vertically */
-  #assignments, #printRoot{
-    display:block !important;
-    font-size:10.5px !important;
     column-count: 2 !important;
     -webkit-column-count: 2 !important;
-    column-gap: 10mm !important;
-    -webkit-column-gap: 10mm !important;
+    column-gap: 12mm !important;
+    -webkit-column-gap: 12mm !important;
     column-fill: auto !important;
     -webkit-column-fill: auto !important;
   }
 
-  /* Cards flow inside columns */
+  /* Each card fills the column width (NOT side-by-side blocks) */
   .box.cnaBox{
     display:block !important;
-    width: auto !important;
-    margin: 0 0 7px 0 !important;
-    padding: 6px 8px !important;
+    width:100% !important;
+    margin: 0 0 8px 0 !important;
     box-shadow:none !important;
-    /* crucial: allow browser to pack */
-    break-inside: auto !important;
-    page-break-inside: auto !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
-  /* Keep the header together (fine) */
-  #printHeader{ break-inside:avoid !important; page-break-inside:avoid !important; }
+  /* Keep header together */
+  #printHeader{ break-inside: avoid !important; page-break-inside: avoid !important; }
 
-  /* Prevent Safari clipping by ensuring nothing is hidden */
-  *{ overflow:visible !important; }
+  /* Don’t force page breaks */
+  .printPageBreak{ display:none !important; }
 }
 </style>
 
