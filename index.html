@@ -717,6 +717,47 @@
 
 /* Remove auto-balance UI */
 .autoBalanceRow,[data-feature="autoBalance"],#autoBalanceWrap{display:none !important;}
+
+
+/* ===== Hospital Print Pagination Fix (iOS Safari) =====
+   Goal: never split CNA cards; force Page 1 to contain exactly 6 CNA boxes (CNA 1–6).
+   CNA 7+ starts on Page 2. Works reliably on iPhone Safari print preview.
+*/
+@media print{
+  /* Use normal document flow (NOT grid) so iOS respects page breaks */
+  #printRoot{ display:block !important; }
+
+  /* Two-column layout via inline-block (more stable than CSS grid on iOS print) */
+  #printRoot .box.cnaBox{
+    display:inline-block !important;
+    vertical-align: top !important;
+    width: 49.2% !important;
+    margin: 0 0 8px 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Gap between columns */
+  #printRoot .box.cnaBox:nth-of-type(odd){ margin-right: 1.2% !important; }
+  #printRoot .box.cnaBox:nth-of-type(even){ margin-right: 0 !important; }
+
+  /* FORCE PAGE BREAK BEFORE 7TH CNA CARD (=> first page has 6 cards) */
+  #printRoot .box.cnaBox:nth-of-type(7){
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* Keep observation/out-to-hospital together and on a new page after CNAs if needed */
+  #printObsWrap, .obsWrap, .obsBox, .obsList, .outToHospitalBox{
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Extra bottom breathing room (prevents “cut off” look) */
+  @page{ margin-bottom: 12mm; }
+  body{ padding-bottom: 8mm !important; }
+}
+
 </style>
 
 <style>
