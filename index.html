@@ -1103,6 +1103,74 @@
 }
 </style>
 
+
+<style id="TIGHT_PRINT_LAYOUT">
+/* =====================================================
+   TIGHT PRINT LAYOUT — removes whitespace + no cut-off
+   Designed specifically for iOS Safari print
+   ===================================================== */
+@media print {
+
+  @page{
+    size: landscape;
+    margin: 6mm 6mm 8mm 6mm; /* tighter margins */
+  }
+
+  body{
+    font-size:10.5px !important;
+    line-height:1.2 !important;
+  }
+
+  /* tighter header spacing */
+  #printHeader{
+    margin-bottom:6px !important;
+  }
+
+  /* true compact two-column layout */
+  #assignments, #printRoot{
+    display:block !important;
+    font-size:0 !important; /* removes inline-block gaps */
+  }
+
+  .box.cnaBox{
+    display:inline-block !important;
+    vertical-align:top !important;
+    width:49.6% !important;
+    margin:0 0 6px 0 !important;
+    padding:6px 8px !important;
+    font-size:10.5px !important;
+    break-inside:avoid !important;
+    page-break-inside:avoid !important;
+  }
+
+  .box.cnaBox:nth-of-type(odd){
+    margin-right:0.8% !important;
+  }
+
+  /* reduce inner spacing */
+  .box.cnaBox h3,
+  .box.cnaBox h4{
+    margin:2px 0 4px 0 !important;
+  }
+
+  .box.cnaBox p,
+  .box.cnaBox div{
+    margin:1px 0 !important;
+  }
+
+  /* force clean second page start */
+  .box.cnaBox:nth-of-type(7){
+    break-before:page !important;
+    page-break-before:always !important;
+  }
+
+  /* prevent Safari clipping */
+  *{
+    overflow:visible !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <div class="topbar">
