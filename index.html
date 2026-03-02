@@ -937,6 +937,53 @@
     page-break-inside: auto !important;
   }
 }
+
+/* ===== iOS SAFARI PRINT: prevent cut-off by forcing deterministic page breaks ===== */
+@media print{
+  /* Use transform scale (more reliable than zoom on iOS) */
+  body{
+    zoom: 1 !important;
+    transform: scale(0.92) !important;
+    transform-origin: top left !important;
+  }
+
+  /* Give extra bottom breathing room so iOS doesn't clip the last row */
+  #printPaper, #printRoot{
+    padding-bottom: 14mm !important;
+    overflow: visible !important;
+  }
+
+  /* Two-column print layout using CSS columns (more stable page breaking on iOS) */
+  #printRoot{
+    display: block !important;
+    column-count: 2 !important;
+    column-gap: 10px !important;
+  }
+
+  /* Never split a CNA card */
+  .cnaBox{
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+    display: inline-block !important;  /* required for column layout */
+    width: 100% !important;
+    margin: 0 0 10px 0 !important;
+  }
+
+  /* Explicit page break markers inserted by JS */
+  .printPageBreak{
+    break-before: page !important;
+    page-break-before: always !important;
+    display: block !important;
+    height: 0 !important;
+    width: 100% !important;
+    column-span: all !important; /* start next page cleanly */
+  }
+
+  /* Hide any UI controls in print */
+  .cnaToggle, .tiny, button, .mobileActionBar{ display:none !important; }
+}
+
 </style>
 </head>
 <body>
@@ -3805,5 +3852,51 @@ syncMobileButtons();
   }
 })();
 </script>
+
+<script>
+(function(){
+  function clearBreaks(root){
+    root.querySelectorAll('.printPageBreak').forEach(el => el.remove());
+  }
+
+  function applyBreaks(){
+    const root = document.getElementById('printRoot');
+    if(!root) return;
+    clearBreaks(root);
+
+    // Insert a hard page break after every 6 CNA cards (CNA 1–6 page 1, CNA 7–12 page 2, etc.)
+    const cards = Array.from(root.querySelectorAll('.cnaBox'));
+    const perPage = 6;
+
+    // If fewer than 7 cards, don't insert anything.
+    if(cards.length <= perPage) return;
+
+    for(let i = perPage; i < cards.length; i += perPage){
+      const marker = document.createElement('div');
+      marker.className = 'printPageBreak';
+      // Insert marker before card i (so next page starts with that card)
+      cards[i].parentNode.insertBefore(marker, cards[i]);
+    }
+  }
+
+  // iOS Safari is inconsistent; listen to multiple hooks
+  window.addEventListener('beforeprint', applyBreaks);
+  window.addEventListener('afterprint', function(){
+    const root = document.getElementById('printRoot');
+    if(root) clearBreaks(root);
+  });
+
+  // matchMedia fallback
+  if(window.matchMedia){
+    const mql = window.matchMedia('print');
+    if(mql && mql.addEventListener){
+      mql.addEventListener('change', e => { if(e.matches) applyBreaks(); });
+    }else if(mql && mql.addListener){
+      mql.addListener(e => { if(e.matches) applyBreaks(); });
+    }
+  }
+})();
+</script>
+
 </body>
 </html>
