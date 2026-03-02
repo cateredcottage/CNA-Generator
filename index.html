@@ -369,7 +369,43 @@
       body.print-one-per .box.cnaBox:last-of-type{ break-after:auto; page-break-after:auto; }
     }
 
-    /* Error banner */
+    /* === PRINT: One-page fit (tuned for ~10 CNAs; can handle 11–12 most days) === */
+    @media print{
+      @page{ size: landscape; margin: 8mm; }
+
+      /* Slightly scale down so most shifts fit on ONE page */
+      html{ -webkit-text-size-adjust: 100%; }
+      body{ font-size: 10.5px !important; zoom: 0.90; }
+
+      /* Two-column CNA cards when NOT printing one-per-page */
+      body:not(.print-one-per) #assignments{
+        display:grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        align-items:start;
+      }
+
+      /* Cleaner, tighter CNA cards */
+      .box.cnaBox{
+        padding: 10px !important;
+        border-radius: 12px !important;
+        border: 1px solid #000 !important;
+      }
+      .boxHead{ gap:8px !important; }
+      .boxHead h3{ font-size: 12px !important; }
+      .tag{ font-size: 10px !important; padding: 4px 7px !important; }
+      .rows{ gap: 4px !important; margin-top: 6px !important; }
+      .run{ font-size: 9.5px !important; }
+      .line{ font-size: 10.5px !important; }
+      .line small{ font-size: 9.5px !important; }
+
+      /* Prevent awkward breaks */
+      #assignments, .box, #printHeader{ break-inside: avoid; page-break-inside: avoid; }
+    }
+
+
+
+/* Error banner */
     .err{
       display:none;
       margin: 0 0 10px 0;
@@ -542,6 +578,21 @@
     }
 
   
+
+    /* ===== iOS speed-ups (mobile) ===== */
+    @media (max-width: 760px){
+      /* Blur/backdrop-filter is expensive on iOS Safari */
+      .topbar{
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: rgba(11,18,32,.92) !important;
+      }
+      /* Reduce heavy shadows further for smoother scrolling */
+      .panel{ box-shadow: 0 6px 14px rgba(2,6,23,.10) !important; }
+      /* Safer scrolling on iOS */
+      .roomListScroll{ overflow-y:auto !important; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+    }
+
 /* Print logo: keep full mark visible */
 @media print{
   #printHeader .phLogo{ width:76px; height:76px; }
@@ -594,34 +645,19 @@
 }
 
 
-/* === PRINT: Make Room Range bold / underlined / uppercase (professional) === */
+/* === PRINT: Room Range (normal) === */
 @media print{
   .cnaRange, .cnaSummary.cnaRange{
-    font-weight: 800 !important;
-    text-decoration: underline !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.6px !important;
-    font-size: 13.5pt !important;
-    margin: 6px 0 8px 0 !important;
-    display: block !important;
-  }
-}
-
-
-/* === PRINT: Room Range (clean) === */
-@media print{
-  .cnaRange, .cnaSummary.cnaRange{
-    font-weight: 700 !important;
-    text-decoration: underline !important;
+    font-weight: normal !important;
+    text-decoration: none !important;
     text-transform: none !important;
-    letter-spacing: 0.2px !important;
+    letter-spacing: normal !important;
     font-size: 12pt !important;
     color: #000 !important;
     margin: 6px 0 8px 0 !important;
     display: block !important;
   }
 }
-
 
 /* === Mobile action bar (Generate / Shuffle / Print) === */
 .mobileActionBar{ display:none; }
@@ -684,19 +720,20 @@
 </style>
 
 <style>
-/* === Room Range Print Styling Enhancement === */
+/* === Room Range Print Styling Enhancement (disabled) === */
 @media print {
   .range,
   .room-range,
   .range-text,
   .roomRange,
   .rangeLabel {
-    font-weight: 700 !important;
-    text-decoration: underline !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.6px !important;
+    font-weight: normal !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
   }
 }
+
 </style>
 
 </head>
@@ -3542,10 +3579,23 @@ get("generate").addEventListener("click", function(){ doGenerate(false); });
     mGen.addEventListener('click', function(){ gen.click(); });
     mSh.addEventListener('click', function(){ sh.click(); });
     mPr.addEventListener('click', function(){ pr.click(); });
-    // keep state synced (after generate enables shuffle/print)
-    setInterval(syncMobileButtons, 300);
-    syncMobileButtons();
+    // Sync mobile buttons without a polling interval (better iOS performance)
+function watchDisabled(srcBtn, mobileBtn){
+  if(!srcBtn || !mobileBtn) return;
+  var apply = function(){ mobileBtn.disabled = !!srcBtn.disabled; };
+  apply();
+  try{
+    var mo = new MutationObserver(apply);
+    mo.observe(srcBtn, { attributes:true, attributeFilter:['disabled'] });
+  }catch(e){
+    // Fallback
+    srcBtn.addEventListener('click', function(){ setTimeout(apply, 0); });
   }
+}
+watchDisabled(sh, mSh);
+watchDisabled(pr, mPr);
+syncMobileButtons();
+}
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', wire);
   }else{
