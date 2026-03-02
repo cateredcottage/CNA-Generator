@@ -994,6 +994,115 @@
 }
 </style>
 
+
+<style id="FINAL_PRINT_OVERRIDE">
+/* ============================================================
+   FINAL PRINT OVERRIDE (single source of truth)
+   Fixes iOS Safari bottom cut-off + conflicting print CSS.
+   - NO transform scaling (causes clipping on iOS)
+   - NO CSS columns/grid in print (unstable pagination on iOS)
+   - Two columns via inline-block
+   - Force CNA 7+ to start on page 2 (first page = 6 CNA cards)
+   ============================================================ */
+@media print{
+  /* Paper */
+  @page{ size: landscape; margin: 10mm 10mm 14mm 10mm; } /* extra bottom margin */
+
+  /* Kill any older scaling tricks */
+  html, body{
+    height:auto !important;
+    overflow:visible !important;
+    -webkit-text-size-adjust:100% !important;
+    transform:none !important;
+  }
+  body{
+    background:#fff !important;
+    color:#000 !important;
+    zoom: 1 !important;                 /* override earlier zoom */
+    transform: none !important;          /* override earlier transform scale */
+    padding-bottom: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 11px !important;
+  }
+
+  /* Hide interactive UI */
+  .topbar, .controls, .leftCol, .copyBar, .tiny, .toast,
+  button, .pillBtn, .miniBtn, .cnaToggle,
+  .mobileActionBar, .footerCredit,
+  details, summary,
+  .chip, .chips{
+    display:none !important;
+  }
+
+  /* Unclip containers (Safari loves to clip rounded elements) */
+  .panel, .main, .wrap, #app, #app *, #printRoot, #printPaper, #assignments{
+    overflow:visible !important;
+    height:auto !important;
+    max-width:none !important;
+  }
+
+  /* Header */
+  #printHeader{ display:block !important; break-inside:avoid !important; page-break-inside:avoid !important; }
+
+  /* Turn OFF any previous grid/columns layouts */
+  #assignments, #printRoot{
+    display:block !important;
+    column-count: unset !important;
+    -webkit-column-count: unset !important;
+    column-gap: 0 !important;
+    -webkit-column-gap: 0 !important;
+  }
+
+  /* CNA cards: 2 columns via inline-block (most stable on iOS print) */
+  #assignments .box.cnaBox, #printRoot .box.cnaBox, .box.cnaBox{
+    display:inline-block !important;
+    vertical-align: top !important;
+    width: 49.2% !important;
+    margin: 0 0 8px 0 !important;
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  /* column gap */
+  #assignments .box.cnaBox:nth-of-type(odd),
+  #printRoot .box.cnaBox:nth-of-type(odd),
+  .box.cnaBox:nth-of-type(odd){ margin-right: 1.2% !important; }
+
+  #assignments .box.cnaBox:nth-of-type(even),
+  #printRoot .box.cnaBox:nth-of-type(even),
+  .box.cnaBox:nth-of-type(even){ margin-right: 0 !important; }
+
+  /* Force Page 2 start at CNA 7 */
+  #assignments .box.cnaBox:nth-of-type(7),
+  #printRoot .box.cnaBox:nth-of-type(7),
+  .box.cnaBox:nth-of-type(7){
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* Cancel older experiments (CNA 9 / markers) */
+  #assignments .box.cnaBox:nth-of-type(9),
+  #printRoot .box.cnaBox:nth-of-type(9),
+  .box.cnaBox:nth-of-type(9){
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+  .printPageBreak{
+    display:none !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  /* Keep Observation / Hospital boxes intact */
+  #printObsWrap, .obsWrap, .obsBox, .obsList, .outToHospitalBox, #obsBox{
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <div class="topbar">
