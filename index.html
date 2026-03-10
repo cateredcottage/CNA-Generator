@@ -198,6 +198,9 @@
   background:#fff;
   height:70vh;
   overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
 }
 .roomListHead
 {
@@ -205,13 +208,18 @@
       border-bottom:1px solid rgba(15,23,42,.08);
       background:#fbfcff;
       position:sticky; top:0; z-index:3;
+      flex:0 0 auto;
     }
     
 .roomListScroll{
-  height:100%;
+  flex:1 1 auto;
+  min-height:0;
   overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  scrollbar-gutter: stable;
 }
 
     .roomBtn{
@@ -2102,9 +2110,14 @@ function saveState(){
         })();
 
         toggleBtn.addEventListener("click", function(){
-          // toggle open/closed in compact mode
-          var isOpen = !!cnaCardOpen[idx];
-          cnaCardOpen[idx] = !isOpen;
+          // toggle open/closed (default-aware)
+          var hasUser = (cnaCardOpen[idx] !== undefined && cnaCardOpen[idx] !== null);
+          var defOpen = !!(get("detailsDefault") && get("detailsDefault").checked);
+          var openNow = hasUser ? !!cnaCardOpen[idx] : defOpen;
+
+          // Toggle from the *actual* current state
+          cnaCardOpen[idx] = !openNow;
+
           saveState();
           renderAssignments(lastAssignments, lastLabels, lastNote);
         });
@@ -2463,17 +2476,17 @@ function saveState(){
         var list = get("roomList");
         if (list){
           var active = list.querySelector(".roomBtn.active");
-          if (active && active.scrollIntoView) active.scrollIntoView({ block: "center" });
+          if (active && active.scrollIntoView) active.scrollIntoView({ block: "center", inline: "nearest" });
         }
         var title = get("roomEditorTitle");
-        if (title && title.scrollIntoView) title.scrollIntoView({ block: "start" });
+        if (title && title.scrollIntoView) title.scrollIntoView({ block: "nearest", inline: "nearest" });
 
         // If user typed a specific bed letter (e.g., 20A), scroll to that bed row too.
         var letter = m[2] || "";
         if (letter){
           var bed = String(room) + letter;
           var row = document.querySelector('[data-bed="' + bed + '"]');
-          if (row && row.scrollIntoView) row.scrollIntoView({ block: "center" });
+          if (row && row.scrollIntoView) row.scrollIntoView({ block: "center", inline: "nearest" });
         }
       }catch(e){}
     }, 0);
@@ -2904,7 +2917,7 @@ function saveState(){
     renderRoomList();
     toast("Filter: " + sel.options[sel.selectedIndex].text);
     // gently scroll to the filter control on mobile
-    try{ sel.scrollIntoView({behavior:"smooth", block:"center"}); }catch(e){}
+    try{ sel.scrollIntoView({behavior:"smooth", block:"nearest", inline:"nearest"}); }catch(e){}
   }
 
   var empWrap = get("chipEmpWrap");
